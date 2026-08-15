@@ -1,0 +1,13 @@
+bin/
+obj/
+publish/
+.vs/
+*.user
+*.log
+crash.log
+smoke.png
+shot_*.png
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc
