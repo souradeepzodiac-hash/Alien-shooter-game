@@ -1,6 +1,10 @@
 @echo off
 setlocal
 cd /d "%~dp0"
+if exist "publish\win-x64-fix\VoidHunter.exe" (
+  start "" "publish\win-x64-fix\VoidHunter.exe"
+  exit /b 0
+)
 if exist "publish\win-x64-new\VoidHunter.exe" (
   start "" "publish\win-x64-new\VoidHunter.exe"
   exit /b 0

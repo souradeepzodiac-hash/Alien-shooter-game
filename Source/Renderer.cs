@@ -389,8 +389,8 @@ static class Renderer
         foreach (Bullet b in w.Bullets)
         {
             if (!b.Alive) continue;
-            Vector3 pos = w.ToWorld(b.Pos) + new Vector3(0, 0.7f, 0);
-            Raylib.DrawSphere(pos, MathF.Max(0.18f, b.Radius * World.WorldScale * 0.9f), b.Tint);
+            Vector3 pos = w.ToWorld(b.Pos, b.Alt);
+            Raylib.DrawSphere(pos, MathF.Max(0.22f, b.Radius * World.WorldScale * 0.9f), b.Tint);
         }
 
         foreach (Enemy e in w.Enemies)
@@ -421,7 +421,7 @@ static class Renderer
 
         if (w.Player.Alive && c.Player.Id != 0)
         {
-            Vector2 sp = Raylib.GetWorldToScreen(w.ToWorld(w.Player.Pos) + new Vector3(0, 1.1f, 0), w.Cam);
+            Vector2 sp = Raylib.GetWorldToScreen(w.ToWorld(w.Player.Pos, w.Player.Alt), w.Cam);
             Color pt = w.Player.HurtFlash > 0 ? Col.Rgba(255, 140, 140) : Color.White;
             if (w.Player.IFrames > 0 && ((int)(w.Time * 20) % 2 == 0) && w.Player.HurtFlash <= 0)
                 pt = Col.Fade(Color.White, 0.5f);
@@ -493,9 +493,9 @@ static class Renderer
 
     static void DrawShip3D(World w, ContentPack c)
     {
-        Vector3 feet = w.ToWorld(w.Player.Pos);
-        Raylib.DrawCircle3D(feet + new Vector3(0, 0.04f, 0), 1.2f, Vector3.UnitX, 90, Col.Rgba(0, 0, 0, 130));
-        Vector3 p = feet + new Vector3(0, 0.55f, 0);
+        Vector3 feet = w.ToWorld(w.Player.Pos, w.Player.Alt);
+        Raylib.DrawCircle3D(new Vector3(feet.X, 0.04f, feet.Z), 1.2f, Vector3.UnitX, 90, Col.Rgba(0, 0, 0, 90));
+        Vector3 p = feet;
         Rlgl.PushMatrix();
         Rlgl.Translatef(p.X, p.Y, p.Z);
         Rlgl.Rotatef(-w.Player.Angle * Raylib.RAD2DEG, 0, 1, 0);
