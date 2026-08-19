@@ -225,6 +225,7 @@ sealed class World
         }
         else
         {
+            // Keyboard only. Mouse never steers thrust — it only aims.
             if (Raylib.IsKeyDown(KeyboardKey.A) || Raylib.IsKeyDown(KeyboardKey.Left)) wish.X -= 1;
             if (Raylib.IsKeyDown(KeyboardKey.D) || Raylib.IsKeyDown(KeyboardKey.Right)) wish.X += 1;
             if (Raylib.IsKeyDown(KeyboardKey.W) || Raylib.IsKeyDown(KeyboardKey.Up)) wish.Y -= 1;
@@ -241,7 +242,24 @@ sealed class World
 
         if (wish.LengthSquared() > 0) wish = V.Norm(wish);
         float speed = Player.DashT > 0 ? (IsAbyss ? 980f : 820f) : (IsAbyss ? 520f : 355f);
+
+        if (dash && Player.DashCd <= 0)
+        {
+            // Dash follows the keys you are holding, never the mouse cursor.
+            Vector2 dir = wish.LengthSquared() > 0.01f ? wish : new Vector2(0, -1);
+            Player.DashT = 0.16f;
+            Player.DashCd = 2.15f;
+            Player.IFrames = MathF.Max(Player.IFrames, 0.16f);
+            speed = IsAbyss ? 980f : 820f;
+            wish = dir;
+            _audio.Dash();
+            Burst(Player.Pos, -dir * 80f, 14, Col.Rgba(120, 230, 255), 220, 9);
+            Ring(Player.Pos, 18, 280, Col.Rgba(80, 210, 255), 0.28f);
+        }
+
+        // Instant velocity: hold WASD to move, release to stop. No coast, no look-thrust.
         Player.Vel = wish * speed;
+        Player.Vel3 = Vector3.Zero;
         Player.Pos += Player.Vel * dt;
         Player.Pos = V.ClampTo(Player.Pos, Playfield, Player.Radius);
 
@@ -252,26 +270,13 @@ sealed class World
             if (Raylib.IsKeyDown(KeyboardKey.Q) || Raylib.IsKeyDown(KeyboardKey.LeftControl)) climb -= 18f;
             Player.Alt += climb * dt;
             Player.Alt = Math.Clamp(Player.Alt, 1.2f, 22f);
-            if (Cam.FovY < 1f) RefreshCamera();
+            RefreshCamera();
             Player.Aim3 = AimDir3D();
             Vector2 flat = new(Player.Aim3.X, Player.Aim3.Z);
             if (flat.LengthSquared() > 0.0001f) aim = flat;
-            RefreshCamera();
         }
 
         if (aim.LengthSquared() > (IsAbyss ? 0.0001f : 16f)) Player.Angle = V.Ang(aim);
-
-        if (dash && Player.DashCd <= 0)
-        {
-            Vector2 dir = wish.LengthSquared() > 0 ? wish : V.FromAngle(Player.Angle);
-            Player.Vel = dir * 820f;
-            Player.DashT = 0.16f;
-            Player.DashCd = 2.15f;
-            Player.IFrames = MathF.Max(Player.IFrames, 0.16f);
-            _audio.Dash();
-            Burst(Player.Pos, V.FromAngle(Player.Angle + MathF.PI), 14, Col.Rgba(120, 230, 255), 220, 9);
-            Ring(Player.Pos, 18, 280, Col.Rgba(80, 210, 255), 0.28f);
-        }
 
         if (fire && Player.FireCd <= 0)
             FireWeapon();
@@ -678,6 +683,8 @@ sealed class World
 
     public void RefreshCamera()
     {
+        // Fixed chase offset. Camera follows position only — never mouse aim —
+        // so looking around cannot drag the ship or spin the view.
         Vector3 p = ToWorld(Player.Pos, Player.Alt);
         Vector3 shake = new(ShakeOff.X * 0.02f, 0f, ShakeOff.Y * 0.02f);
         Cam.Target = p + new Vector3(0f, 0.8f, 0f) + shake;

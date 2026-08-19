@@ -212,6 +212,9 @@ static class Renderer
         string wpn = $"{World.WeaponName(w.Player.Weapon)}  L{Math.Max(1, w.Player.Levels[(int)w.Player.Weapon])}";
         if (w.Player.Overdrive > 0) wpn += $"  OD {w.Player.Overdrive:0.0}";
         DrawTextCentered(c.Font, wpn, new Vector2(sw * 0.5f, Raylib.GetScreenHeight() - 38), 18, Col.Rgba(140, 230, 255));
+        if (w.IsAbyss)
+            DrawTextCentered(c.Font, "WASD MOVE   MOUSE AIM   Q/E HEIGHT   LMB FIRE   SHIFT DASH",
+                new Vector2(sw * 0.5f, Raylib.GetScreenHeight() - 16), 12, Col.Rgba(180, 160, 220, 200));
 
         // weapon slots
         float sx = sw * 0.5f - 86;
