@@ -269,7 +269,7 @@ sealed class World
         Player.Pos += Player.Vel * dt;
         Player.Pos = V.ClampTo(Player.Pos, Playfield, Player.Radius);
 
-        if (aim.LengthSquared() > 16f) Player.Angle = V.Ang(aim);
+        if (aim.LengthSquared() > (IsAbyss ? 4f : 16f)) Player.Angle = V.Ang(aim);
 
         if (dash && Player.DashCd <= 0)
         {
@@ -315,7 +315,8 @@ sealed class World
         int lv = Math.Max(1, Player.Levels[(int)Player.Weapon]);
         float od = Player.Overdrive > 0 ? 0.62f : 1f;
         Vector2 dir = V.FromAngle(Player.Angle);
-        Vector2 muzzle = Player.Pos + dir * 28f;
+        float reach = IsAbyss ? 1.85f : 1f;
+        Vector2 muzzle = Player.Pos + dir * (IsAbyss ? 80f : 28f);
 
         switch (Player.Weapon)
         {
@@ -325,7 +326,7 @@ sealed class World
                 for (int i = 0; i <= extra; i++)
                 {
                     Vector2 off = extra > 0 ? V.Perp(dir) * (i == 0 ? -8f : 8f) : Vector2.Zero;
-                    SpawnBullet(BulletOwner.Player, muzzle + off, dir * 940f, 5.5f, 12 + lv * 2, 1.1f, 0, 0,
+                    SpawnBullet(BulletOwner.Player, muzzle + off, dir * 940f * reach, 5.5f, 12 + lv * 2, 1.1f * reach, 0, 0,
                         Col.Rgba(90, 240, 255), WeaponKind.Pulse);
                 }
                 break;
@@ -337,19 +338,19 @@ sealed class World
                 {
                     float t = shots == 1 ? 0 : (i / (float)(shots - 1) - 0.5f);
                     Vector2 d = V.FromAngle(Player.Angle + t * spread);
-                    SpawnBullet(BulletOwner.Player, muzzle, d * 820f, 4.5f, 7 + lv, 0.9f, 0, 0,
+                    SpawnBullet(BulletOwner.Player, muzzle, d * 820f * reach, 4.5f, 7 + lv, 0.9f * reach, 0, 0,
                         Col.Rgba(190, 120, 255), WeaponKind.Spread);
                 }
                 break;
             case WeaponKind.Rail:
                 Player.FireCd = (lv >= 3 ? 0.38f : 0.48f) * od;
-                SpawnBullet(BulletOwner.Player, muzzle, dir * 1500f, 7f, 42 + lv * 10, 0.55f, lv >= 2 ? 6 : 3, 0,
+                SpawnBullet(BulletOwner.Player, muzzle, dir * 1500f * reach, 7f, 42 + lv * 10, 0.7f * reach, lv >= 2 ? 6 : 3, 0,
                     Col.Rgba(255, 230, 120), WeaponKind.Rail);
                 Shake = MathF.Max(Shake, 3.5f);
                 break;
             default:
                 Player.FireCd = (lv >= 3 ? 0.42f : 0.55f) * od;
-                SpawnBullet(BulletOwner.Player, muzzle, dir * 520f, 9f, 26 + lv * 6, 1.4f, 0, 78f + lv * 10,
+                SpawnBullet(BulletOwner.Player, muzzle, dir * 520f * reach, 9f, 26 + lv * 6, 1.4f * reach, 0, (78f + lv * 10) * reach,
                     Col.Rgba(255, 140, 60), WeaponKind.Nova);
                 break;
         }
@@ -688,13 +689,21 @@ sealed class World
     Vector2 AimPoint3D()
     {
         Ray ray = Raylib.GetScreenToWorldRay(Raylib.GetMousePosition(), Cam);
-        if (MathF.Abs(ray.Direction.Y) < 0.0008f)
-            return Player.Pos + V.FromAngle(Player.Angle) * 80f;
-        float t = -ray.Position.Y / ray.Direction.Y;
-        if (t <= 0f)
-            return Player.Pos + V.FromAngle(Player.Angle) * 80f;
-        return FromWorld(ray.Position + ray.Direction * t);
+        if (MathF.Abs(ray.Direction.Y) > 0.0008f)
+        {
+            float t = -ray.Position.Y / ray.Direction.Y;
+            if (t > 0.05f)
+                return FromWorld(ray.Position + ray.Direction * t);
+        }
+        Vector3 flat = new(ray.Direction.X, 0f, ray.Direction.Z);
+        if (flat.LengthSquared() < 1e-6f)
+            return Player.Pos + V.FromAngle(Player.Angle) * 120f;
+        flat = Vector3.Normalize(flat);
+        return FromWorld(new Vector3(Cam.Position.X, 0f, Cam.Position.Z) + flat * 48f);
     }
+
+    public float CombatRadius(Enemy e) => IsAbyss ? MathF.Max(e.Radius * 4f, 64f) : e.Radius;
+    public float PlayerCombatRadius() => IsAbyss ? 56f : Player.Radius;
 
     Vector2 EdgePoint()
     {
@@ -975,7 +984,7 @@ sealed class World
             if (!b.Alive) { Bullets.RemoveAt(i); continue; }
             b.Life -= dt;
             b.Pos += b.Vel * dt;
-            if (b.Life <= 0 || !Raylib.CheckCollisionCircleRec(b.Pos, b.Radius, Expand(Playfield, 80)))
+            if (b.Life <= 0 || !Raylib.CheckCollisionCircleRec(b.Pos, b.Radius, Expand(Playfield, IsAbyss ? 240 : 80)))
             {
                 b.Alive = false;
                 continue;
@@ -997,7 +1006,8 @@ sealed class World
             p.Age += dt;
             p.Life -= dt;
             if (p.Life <= 0) p.Alive = false;
-            if (Player.Alive && Vector2.DistanceSquared(p.Pos, Player.Pos) < 42f * 42f)
+            float grab = IsAbyss ? 90f : 42f;
+            if (Player.Alive && Vector2.DistanceSquared(p.Pos, Player.Pos) < grab * grab)
                 Collect(p);
         }
     }
@@ -1069,7 +1079,8 @@ sealed class World
             foreach (Enemy e in Enemies)
             {
                 if (!e.Alive || e.SpawnIn > 0) continue;
-                if (Vector2.DistanceSquared(b.Pos, e.Pos) > (b.Radius + e.Radius) * (b.Radius + e.Radius)) continue;
+                float hit = b.Radius + CombatRadius(e);
+                if (Vector2.DistanceSquared(b.Pos, e.Pos) > hit * hit) continue;
                 HurtEnemy(e, b.Damage, b.Pos);
                 if (b.Splash > 0)
                 {
@@ -1091,7 +1102,8 @@ sealed class World
         foreach (Bullet b in Bullets)
         {
             if (!b.Alive || b.Owner != BulletOwner.Enemy) continue;
-            if (Vector2.DistanceSquared(b.Pos, Player.Pos) > (b.Radius + Player.Radius) * (b.Radius + Player.Radius)) continue;
+            float hit = b.Radius + PlayerCombatRadius();
+            if (Vector2.DistanceSquared(b.Pos, Player.Pos) > hit * hit) continue;
             b.Alive = false;
             HurtPlayer(b.Damage, b.Pos);
         }
@@ -1099,7 +1111,8 @@ sealed class World
         foreach (Enemy e in Enemies)
         {
             if (!e.Alive || e.SpawnIn > 0) continue;
-            if (Vector2.DistanceSquared(e.Pos, Player.Pos) > (e.Radius + Player.Radius) * (e.Radius + Player.Radius)) continue;
+            float hit = CombatRadius(e) + PlayerCombatRadius();
+            if (Vector2.DistanceSquared(e.Pos, Player.Pos) > hit * hit) continue;
             HurtPlayer(e.Contact, e.Pos);
             e.Vel = V.Norm(e.Pos - Player.Pos) * 220f;
         }
@@ -1212,6 +1225,11 @@ sealed class World
     void SpawnBullet(BulletOwner owner, Vector2 pos, Vector2 vel, float radius, float dmg, float life, int pierce, float splash, Color tint, WeaponKind style)
     {
         if (Bullets.Count > 420) return;
+        if (IsAbyss)
+        {
+            radius *= owner == BulletOwner.Player ? 3.2f : 2.2f;
+            if (owner == BulletOwner.Player) life *= 1.4f;
+        }
         Bullets.Add(new Bullet
         {
             Alive = true, Owner = owner, Pos = pos, Vel = vel, Radius = radius,

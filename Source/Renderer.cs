@@ -419,6 +419,25 @@ static class Renderer
 
         Raylib.EndMode3D();
 
+        if (w.Player.Alive && c.Player.Id != 0)
+        {
+            Vector2 sp = Raylib.GetWorldToScreen(w.ToWorld(w.Player.Pos) + new Vector3(0, 1.1f, 0), w.Cam);
+            Color pt = w.Player.HurtFlash > 0 ? Col.Rgba(255, 140, 140) : Color.White;
+            if (w.Player.IFrames > 0 && ((int)(w.Time * 20) % 2 == 0) && w.Player.HurtFlash <= 0)
+                pt = Col.Fade(Color.White, 0.5f);
+            float rot = w.Player.Angle * Raylib.RAD2DEG + 90f;
+            DrawGlow(c, sp, 42, Col.Rgba(80, 230, 255), 0.4f);
+            DrawSprite(c.Player, sp, 78, rot, pt);
+        }
+
+        foreach (Enemy e in w.Enemies)
+        {
+            if (!e.Alive || e.Kind is EnemyKind.Hydra or EnemyKind.Boss) continue;
+            if (e.Hp >= e.MaxHp) continue;
+            Vector2 sp = Raylib.GetWorldToScreen(w.ToWorld(e.Pos) + new Vector3(0, 3.2f, 0), w.Cam);
+            DrawTinyBar(sp, e.Hp / e.MaxHp, 36, Col.Rgba(255, 80, 70));
+        }
+
         foreach (Floater f in w.Floaters)
         {
             if (!f.Alive) continue;
@@ -475,25 +494,17 @@ static class Renderer
     static void DrawShip3D(World w, ContentPack c)
     {
         Vector3 feet = w.ToWorld(w.Player.Pos);
-        Raylib.DrawCircle3D(feet + new Vector3(0, 0.04f, 0), 1.1f, Vector3.UnitX, 90, Col.Rgba(0, 0, 0, 120));
-        Color tint = w.Player.HurtFlash > 0 ? Col.Rgba(255, 140, 140) : Color.White;
-        if (c.Player.Id != 0)
-        {
-            float size = 4.6f;
-            Vector3 center = feet + new Vector3(0, size * 0.42f, 0);
-            Raylib.DrawBillboard(w.Cam, c.Player, center, size, tint);
-        }
-        else
-        {
-            Vector3 p = feet + new Vector3(0, 0.9f, 0);
-            Rlgl.PushMatrix();
-            Rlgl.Translatef(p.X, p.Y, p.Z);
-            Rlgl.Rotatef(-w.Player.Angle * Raylib.RAD2DEG, 0, 1, 0);
-            Raylib.DrawCube(new Vector3(0.35f, 0, 0), 1.8f, 0.38f, 0.55f, Col.Rgba(235, 225, 200));
-            Rlgl.PopMatrix();
-        }
+        Raylib.DrawCircle3D(feet + new Vector3(0, 0.04f, 0), 1.2f, Vector3.UnitX, 90, Col.Rgba(0, 0, 0, 130));
+        Vector3 p = feet + new Vector3(0, 0.55f, 0);
+        Rlgl.PushMatrix();
+        Rlgl.Translatef(p.X, p.Y, p.Z);
+        Rlgl.Rotatef(-w.Player.Angle * Raylib.RAD2DEG, 0, 1, 0);
+        Raylib.DrawCube(new Vector3(0.4f, 0, 0), 1.6f, 0.28f, 0.45f, Col.Rgba(200, 230, 240));
+        Raylib.DrawSphere(new Vector3(-0.55f, 0.05f, 0), 0.16f, Col.Rgba(80, 240, 255));
+        Rlgl.PopMatrix();
         if (w.Player.Shield > 0)
             Raylib.DrawSphereWires(feet + new Vector3(0, 1.1f, 0), 1.5f, 8, 8, Col.Rgba(40, 230, 210, 180));
+        _ = c;
     }
 
     static void DrawAlien3D(World w, ContentPack c, Enemy e)
