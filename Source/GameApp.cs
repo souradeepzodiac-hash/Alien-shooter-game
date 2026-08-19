@@ -99,8 +99,9 @@ static class GameApp
                     audio.PauseMusic(false);
                     int pick = Screens.UpdateMain(menu);
                     if (pick == 0) StartGame(world, audio, menu, ref screen);
-                    else if (pick == 1) screen = Screen.HowTo;
-                    else if (pick == 2) Quit();
+                    else if (pick == 1) StartAbyss(world, audio, menu, ref screen);
+                    else if (pick == 2) screen = Screen.HowTo;
+                    else if (pick == 3) Quit();
                     break;
                 case Screen.HowTo:
                     if (Raylib.IsKeyPressed(KeyboardKey.Escape) || Raylib.IsKeyPressed(KeyboardKey.Enter)
@@ -182,10 +183,34 @@ static class GameApp
                     break;
                 case Screen.LevelClear:
                     int cleared = menuLock > 0 ? -1 : Screens.UpdateLevelClear(world, menu);
-                    if (cleared == 0)
+                    if (world.WantsWorldGate)
                     {
-                        if (world.WantsWorldGate) world.EnterAbyss();
-                        else world.ContinueNextLevel();
+                        if (cleared == 0)
+                        {
+                            world.EnterAbyss();
+                            screen = Screen.Playing;
+                            audio.PlayBattle();
+                            audio.PauseMusic(false);
+                        }
+                        else if (cleared == 1)
+                        {
+                            world.FinishRun(won: true);
+                            screen = Screen.Victory;
+                            menu.Reset();
+                            menuLock = 0.35f;
+                            audio.PlayTheme();
+                        }
+                        else if (cleared == 2)
+                        {
+                            screen = Screen.Menu;
+                            menu.Reset();
+                            audio.PlayTheme();
+                        }
+                        else if (cleared == 3) Quit();
+                    }
+                    else if (cleared == 0)
+                    {
+                        world.ContinueNextLevel();
                         screen = Screen.Playing;
                         audio.PlayBattle();
                         audio.PauseMusic(false);
@@ -272,6 +297,16 @@ static class GameApp
     {
         world.AutoPlay = false;
         world.StartNew();
+        screen = Screen.Playing;
+        menu.Reset();
+        audio.PlayBattle();
+    }
+
+    static void StartAbyss(World world, AudioBus audio, MenuController menu, ref Screen screen)
+    {
+        world.AutoPlay = false;
+        world.StartNew();
+        world.EnterAbyss();
         screen = Screen.Playing;
         menu.Reset();
         audio.PlayBattle();

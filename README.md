@@ -12,10 +12,12 @@ High scores are saved in `%APPDATA%\VoidHunter\save.json`.
 
 There are two worlds, **10 levels each**.
 
-1. **Rift** — top-down twin-stick swarm.
-2. **Abyss** — unlocked after Rift 10. A 3D arena with new aliens (Prism, Hunter, Wraith, Spire) and Hydra bosses.
+Choose your campaign from the main menu:
 
-Clear a level to see your result, then choose **Next Level**. After Rift 10 choose **Enter the Abyss**. Beat Abyss 10 to win. If your hull reaches zero you lose and can retry that level or quit.
+1. **Rift Campaign** — top-down twin-stick, 10 levels.
+2. **Abyss World** — optional 3D arena, 10 new alien types and Hydra bosses.
+
+After Rift 10 you can **Enter the Abyss** or **Claim Victory** and stop. Beat Abyss 10 for the full ending.
 
 ## Controls
 

@@ -73,22 +73,23 @@ static class Screens
         Renderer.DrawMenuBackdrop(c, time);
         int sw = Raylib.GetScreenWidth();
         int sh = Raylib.GetScreenHeight();
-        Renderer.DrawTextCentered(c.Font, "VOID HUNTER", new Vector2(sw * 0.5f, sh * 0.22f), 64, Color.White);
-        Renderer.DrawTextCentered(c.Font, "HOLD THE RIFT. BURN THE SWARM.", new Vector2(sw * 0.5f, sh * 0.22f + 48), 18, Col.Rgba(140, 220, 255));
-        Renderer.DrawTextCentered(c.Font, $"BEST  {SaveData.HighScore:N0}", new Vector2(sw * 0.5f, sh * 0.22f + 78), 20, Col.Rgba(255, 210, 90));
+        Renderer.DrawTextCentered(c.Font, "VOID HUNTER", new Vector2(sw * 0.5f, sh * 0.16f), 64, Color.White);
+        Renderer.DrawTextCentered(c.Font, "HOLD THE RIFT. BURN THE SWARM.", new Vector2(sw * 0.5f, sh * 0.18f + 48), 18, Col.Rgba(140, 220, 255));
+        Renderer.DrawTextCentered(c.Font, $"BEST  {SaveData.HighScore:N0}", new Vector2(sw * 0.5f, sh * 0.18f + 78), 20, Col.Rgba(255, 210, 90));
 
-        var items = new[] { "NEW GAME", "HOW TO PLAY", "QUIT" };
-        var rects = ButtonColumn(sw, sh * 0.42f, items.Length);
+        var items = MainItems;
+        var rects = ButtonColumn(sw, sh * 0.36f, items.Length);
         menu.DrawButtons(c, items, rects);
         Renderer.DrawTextCentered(c.Font, "WASD MOVE   MOUSE AIM   LMB / SPACE FIRE   RMB / SHIFT DASH   ESC PAUSE",
             new Vector2(sw * 0.5f, sh - 36), 14, Col.Rgba(170, 190, 210, 180));
     }
 
+    static readonly string[] MainItems = ["RIFT CAMPAIGN", "ABYSS WORLD  3D", "HOW TO PLAY", "QUIT"];
+
     public static int UpdateMain(MenuController menu)
     {
-        var items = new[] { "NEW GAME", "HOW TO PLAY", "QUIT" };
-        var rects = ButtonColumn(Raylib.GetScreenWidth(), Raylib.GetScreenHeight() * 0.42f, items.Length);
-        return menu.Update(items, rects);
+        var rects = ButtonColumn(Raylib.GetScreenWidth(), Raylib.GetScreenHeight() * 0.36f, MainItems.Length);
+        return menu.Update(MainItems, rects);
     }
 
     public static void DrawHowTo(ContentPack c)
@@ -107,7 +108,8 @@ static class Screens
             "PULSE is rapid. SPREAD covers arcs. RAIL pierces. NOVA detonates.",
             "Weapon crates upgrade the equipped gun, then unlock the next.",
             "Hull orbs repair. Hex tokens raise a shield. Gold cores start Overdrive.",
-            "Clear 10 Rift levels, then enter the 3D Abyss for 10 more alien stages.",
+            "Choose your war: Rift Campaign (2D) or Abyss World (3D), 10 levels each.",
+            "After Rift 10 you may enter the Abyss or claim victory and stop there.",
             "Every fifth Rift level a Leviathan arrives. In the Abyss, Hydras hunt you.",
             "After each level, review your result and choose NEXT LEVEL or QUIT.",
             "If your hull hits zero you lose that run. Retry the level or quit.",
@@ -172,21 +174,22 @@ static class Screens
         int sh = Raylib.GetScreenHeight();
         Raylib.DrawRectangle(0, 0, sw, sh, Col.Rgba(4, 10, 18, 200));
         string title = w.WantsWorldGate ? "RIFT CONQUERED" : "LEVEL CLEARED";
-        string sub = w.WantsWorldGate ? "A NEW 3D WORLD OPENS" : $"{w.WorldName}  LEVEL {w.Wave}  COMPLETE";
-        DrawResultCard(c, sw * 0.5f, sh * 0.16f, title, sub, w.WantsWorldGate ? Col.Rgba(210, 140, 255) : Col.Rgba(90, 230, 180), w, lost: false);
+        string sub = w.WantsWorldGate ? "CHOOSE YOUR PATH" : $"{w.WorldName}  LEVEL {w.Wave}  COMPLETE";
+        DrawResultCard(c, sw * 0.5f, sh * 0.14f, title, sub, w.WantsWorldGate ? Col.Rgba(210, 140, 255) : Col.Rgba(90, 230, 180), w, lost: false);
         var items = ClearItemsFor(w);
-        var rects = ButtonColumn(sw, sh * 0.58f, items.Length);
+        var rects = ButtonColumn(sw, w.WantsWorldGate ? sh * 0.54f : sh * 0.58f, items.Length, w.WantsWorldGate ? 54 : 62);
         menu.DrawButtons(c, items, rects);
     }
 
     static readonly string[] ClearItems = ["NEXT LEVEL", "MAIN MENU", "QUIT GAME"];
-    static readonly string[] GateItems = ["ENTER THE ABYSS", "MAIN MENU", "QUIT GAME"];
+    static readonly string[] GateItems = ["ENTER THE ABYSS", "CLAIM VICTORY", "MAIN MENU", "QUIT GAME"];
     static string[] ClearItemsFor(World w) => w.WantsWorldGate ? GateItems : ClearItems;
 
     public static int UpdateLevelClear(World w, MenuController menu)
     {
         var items = ClearItemsFor(w);
-        var rects = ButtonColumn(Raylib.GetScreenWidth(), Raylib.GetScreenHeight() * 0.58f, items.Length);
+        float top = w.WantsWorldGate ? Raylib.GetScreenHeight() * 0.54f : Raylib.GetScreenHeight() * 0.58f;
+        var rects = ButtonColumn(Raylib.GetScreenWidth(), top, items.Length, w.WantsWorldGate ? 54 : 62);
         return menu.Update(items, rects);
     }
 
@@ -196,7 +199,8 @@ static class Screens
         int sw = Raylib.GetScreenWidth();
         int sh = Raylib.GetScreenHeight();
         Raylib.DrawRectangle(0, 0, sw, sh, Col.Rgba(4, 10, 16, 170));
-        DrawResultCard(c, sw * 0.5f, sh * 0.16f, "YOU WON", "RIFT AND ABYSS ARE SEALED", Col.Rgba(255, 220, 90), w, lost: false);
+        string sub = w.EndedInAbyss ? "RIFT AND ABYSS ARE SEALED" : "THE RIFT IS SEALED";
+        DrawResultCard(c, sw * 0.5f, sh * 0.16f, "YOU WON", sub, Col.Rgba(255, 220, 90), w, lost: false);
         var items = WinItems;
         var rects = ButtonColumn(sw, sh * 0.58f, items.Length);
         menu.DrawButtons(c, items, rects);
@@ -245,12 +249,12 @@ static class Screens
         return $"{t / 60:00}:{t % 60:00}";
     }
 
-    static Rectangle[] ButtonColumn(int sw, float top, int n)
+    static Rectangle[] ButtonColumn(int sw, float top, int n, float gap = 62)
     {
         var r = new Rectangle[n];
-        const float w = 280, h = 48;
+        const float w = 300, h = 48;
         for (int i = 0; i < n; i++)
-            r[i] = new Rectangle(sw * 0.5f - w * 0.5f, top + i * 62, w, h);
+            r[i] = new Rectangle(sw * 0.5f - w * 0.5f, top + i * gap, w, h);
         return r;
     }
 }

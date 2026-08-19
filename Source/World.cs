@@ -95,7 +95,7 @@ sealed class World
     public float ComboT, Shake, BannerT, WaveRest, GameOverDelay, Time, LevelTime;
     public string Banner = "";
     public string ResultGrade = "C";
-    public bool WantsGameOver, WantsLevelClear, WantsVictory, WantsWorldGate, NewHigh;
+    public bool WantsGameOver, WantsLevelClear, WantsVictory, WantsWorldGate, NewHigh, EndedInAbyss;
     public bool AutoPlay;
     public bool IsAbyss => Chapter >= 2;
     public string WorldName => IsAbyss ? "ABYSS" : "RIFT";
@@ -120,6 +120,7 @@ sealed class World
         ComboT = 0; Shake = 0; BannerT = 0; WaveRest = 0.6f;
         GameOverDelay = 0; Time = 0; LevelTime = 0;
         WantsGameOver = false; WantsLevelClear = false; WantsVictory = false; WantsWorldGate = false; NewHigh = false;
+        EndedInAbyss = false;
         ResultGrade = "C";
         Chapter = 1;
         _spawnWait = 0; _bossIndex = 0;
@@ -336,11 +337,7 @@ sealed class World
 
         if (AutoPlay)
         {
-            if (Wave >= FinalLevel)
-            {
-                if (Chapter == 1) EnterAbyss();
-                else FinishRun(won: true);
-            }
+            if (Wave >= FinalLevel) FinishRun(won: true);
             else ContinueNextLevel();
             return;
         }
@@ -487,8 +484,10 @@ sealed class World
         NewHigh = SaveData.TryRecord(Score);
         if (won)
         {
+            EndedInAbyss = IsAbyss;
             WantsVictory = true;
             WantsLevelClear = false;
+            WantsWorldGate = false;
             Banner = "VICTORY";
             BannerT = 2f;
             _audio.Boss();
@@ -647,9 +646,9 @@ sealed class World
         Vector3 p = ToWorld(Player.Pos);
         Vector3 shake = new(ShakeOff.X * 0.02f, 0f, ShakeOff.Y * 0.02f);
         Cam.Target = p + new Vector3(0f, 1.3f, 0f) + shake;
-        Cam.Position = p + new Vector3(0f, 30f, 26f) + shake;
+        Cam.Position = p + new Vector3(0f, 20f, 32f) + shake;
         Cam.Up = Vector3.UnitY;
-        Cam.FovY = 48f;
+        Cam.FovY = 52f;
         Cam.Projection = CameraProjection.Perspective;
     }
 
