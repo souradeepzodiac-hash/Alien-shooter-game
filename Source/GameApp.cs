@@ -92,6 +92,14 @@ static class GameApp
                 audio.ToggleMute();
             if (menuLock > 0) menuLock -= dt;
 
+            bool mouseLook = screen == Screen.Playing && world.IsAbyss && !smoke;
+            if (mouseLook) Raylib.DisableCursor();
+            else
+            {
+                Raylib.EnableCursor();
+                if (screen == Screen.Playing) Raylib.HideCursor();
+            }
+
             switch (screen)
             {
                 case Screen.Menu:

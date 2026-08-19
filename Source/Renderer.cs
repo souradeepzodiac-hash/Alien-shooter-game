@@ -213,7 +213,7 @@ static class Renderer
         if (w.Player.Overdrive > 0) wpn += $"  OD {w.Player.Overdrive:0.0}";
         DrawTextCentered(c.Font, wpn, new Vector2(sw * 0.5f, Raylib.GetScreenHeight() - 38), 18, Col.Rgba(140, 230, 255));
         if (w.IsAbyss)
-            DrawTextCentered(c.Font, "WASD FLY ANYWHERE   MOUSE AIM   Q/E HEIGHT   LMB FIRE   SHIFT DASH",
+            DrawTextCentered(c.Font, "MOUSE LOOK   WASD FLY   Q/E UP-DOWN   LMB FIRE   SHIFT DASH",
                 new Vector2(sw * 0.5f, Raylib.GetScreenHeight() - 16), 12, Col.Rgba(180, 160, 220, 200));
 
         // weapon slots
@@ -247,7 +247,9 @@ static class Renderer
             DrawTextCentered(c.Font, w.Banner, new Vector2(sw * 0.5f, 110), 42, Col.Fade(Color.White, a));
         }
 
-        DrawCrosshair(Raylib.GetMousePosition());
+        DrawCrosshair(w.IsAbyss
+            ? new Vector2(sw * 0.5f, Raylib.GetScreenHeight() * 0.5f)
+            : Raylib.GetMousePosition());
     }
 
     static void DrawCrosshair(Vector2 m)
@@ -423,22 +425,11 @@ static class Renderer
 
         Raylib.EndMode3D();
 
-        if (w.Player.Alive && c.Player.Id != 0)
-        {
-            Vector2 sp = Raylib.GetWorldToScreen(w.ToWorld(w.Player.Pos, w.Player.Alt), w.Cam);
-            Color pt = w.Player.HurtFlash > 0 ? Col.Rgba(255, 140, 140) : Color.White;
-            if (w.Player.IFrames > 0 && ((int)(w.Time * 20) % 2 == 0) && w.Player.HurtFlash <= 0)
-                pt = Col.Fade(Color.White, 0.5f);
-            float rot = w.Player.Angle * Raylib.RAD2DEG + 90f;
-            DrawGlow(c, sp, 42, Col.Rgba(80, 230, 255), 0.4f);
-            DrawSprite(c.Player, sp, 78, rot, pt);
-        }
-
         foreach (Enemy e in w.Enemies)
         {
             if (!e.Alive || e.Kind is EnemyKind.Hydra or EnemyKind.Boss) continue;
             if (e.Hp >= e.MaxHp) continue;
-            Vector2 sp = Raylib.GetWorldToScreen(w.ToWorld(e.Pos) + new Vector3(0, 3.2f, 0), w.Cam);
+            Vector2 sp = Raylib.GetWorldToScreen(w.ToWorld(e.Pos, e.Alt) + new Vector3(0, 3.2f, 0), w.Cam);
             DrawTinyBar(sp, e.Hp / e.MaxHp, 36, Col.Rgba(255, 80, 70));
         }
 
@@ -456,7 +447,7 @@ static class Renderer
         Raylib.DrawRectangleGradientV(0, sh2 - 50, sw2, 50, Col.Rgba(0, 0, 0, 0), Col.Rgba(0, 0, 0, 90));
         if (w.Player.HurtFlash > 0)
             Raylib.DrawRectangle(0, 0, sw2, sh2, Col.Fade(Col.Rgba(180, 20, 30), w.Player.HurtFlash * 1.6f));
-        DrawCrosshair(Raylib.GetMousePosition());
+        DrawCrosshair(new Vector2(sw2 * 0.5f, sh2 * 0.5f));
     }
 
     static void DrawOpenSpace(World w)
@@ -541,9 +532,12 @@ static class Renderer
         Vector3 p = feet;
         Rlgl.PushMatrix();
         Rlgl.Translatef(p.X, p.Y, p.Z);
-        Rlgl.Rotatef(-w.Player.Angle * Raylib.RAD2DEG, 0, 1, 0);
-        Raylib.DrawCube(new Vector3(0.4f, 0, 0), 1.6f, 0.28f, 0.45f, Col.Rgba(200, 230, 240));
-        Raylib.DrawSphere(new Vector3(-0.55f, 0.05f, 0), 0.16f, Col.Rgba(80, 240, 255));
+        Rlgl.Rotatef(-w.Player.Yaw * Raylib.RAD2DEG, 0, 1, 0);
+        Rlgl.Rotatef(w.Player.Pitch * Raylib.RAD2DEG, 1, 0, 0);
+        Raylib.DrawCube(new Vector3(0f, 0f, -0.45f), 0.5f, 0.28f, 1.7f, Col.Rgba(200, 230, 240));
+        Raylib.DrawCube(new Vector3(0.7f, 0f, 0.1f), 0.9f, 0.08f, 0.35f, Col.Rgba(80, 180, 220));
+        Raylib.DrawCube(new Vector3(-0.7f, 0f, 0.1f), 0.9f, 0.08f, 0.35f, Col.Rgba(80, 180, 220));
+        Raylib.DrawSphere(new Vector3(0f, 0.05f, 0.55f), 0.16f, Col.Rgba(80, 240, 255));
         Rlgl.PopMatrix();
         if (w.Player.Shield > 0)
             Raylib.DrawSphereWires(feet + new Vector3(0, 1.1f, 0), 1.5f, 8, 8, Col.Rgba(40, 230, 210, 180));
@@ -553,7 +547,7 @@ static class Renderer
     static void DrawAlien3D(World w, ContentPack c, Enemy e)
     {
         Texture2D tex = c.TexFor(e.Kind);
-        Vector3 feet = w.ToWorld(e.Pos);
+        Vector3 feet = w.ToWorld(e.Pos, e.Alt);
         Raylib.DrawCircle3D(feet + new Vector3(0, 0.03f, 0), e.Radius * World.WorldScale * 1.1f, Vector3.UnitX, 90, Col.Rgba(0, 0, 0, 110));
         if (tex.Id == 0)
             return;

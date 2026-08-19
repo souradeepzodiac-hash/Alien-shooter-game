@@ -25,7 +25,7 @@ sealed class Enemy
     public bool Alive;
     public EnemyKind Kind;
     public Vector2 Pos, Vel;
-    public float Angle, Radius, Hp, MaxHp, Contact, Score;
+    public float Alt, Angle, Radius, Hp, MaxHp, Contact, Score;
     public float FireCd, Age, Flash, SpawnIn, ChargeT, ChargeCd;
     public float Spiral;
     public int Phase;
@@ -71,6 +71,8 @@ sealed class Player
     public Vector3 Vel3;
     public Vector3 Aim3 = new(0, 0, -1);
     public float Alt = 1.2f;
+    public float Yaw;
+    public float Pitch = -0.18f;
     public float Angle = -MathF.PI / 2f;
     public float Radius = 22f;
     public float Hp = 120f, MaxHp = 120f;
@@ -223,9 +225,8 @@ sealed class World
             fire = true;
             if (Player.DashCd <= 0 && Rng.Chance(0.008f)) dash = true;
         }
-        else
+        else if (!IsAbyss)
         {
-            // Keyboard only. Mouse never steers thrust — it only aims.
             if (Raylib.IsKeyDown(KeyboardKey.A) || Raylib.IsKeyDown(KeyboardKey.Left)) wish.X -= 1;
             if (Raylib.IsKeyDown(KeyboardKey.D) || Raylib.IsKeyDown(KeyboardKey.Right)) wish.X += 1;
             if (Raylib.IsKeyDown(KeyboardKey.W) || Raylib.IsKeyDown(KeyboardKey.Up)) wish.Y -= 1;
@@ -240,54 +241,91 @@ sealed class World
         if (wheel > 0) CycleWeapon(1);
         if (wheel < 0) CycleWeapon(-1);
 
-        if (wish.LengthSquared() > 0) wish = V.Norm(wish);
-        float speed = Player.DashT > 0 ? (IsAbyss ? 980f : 820f) : (IsAbyss ? 520f : 355f);
-
-        if (dash && Player.DashCd <= 0)
+        if (IsAbyss && !AutoPlay)
         {
-            // Dash follows the keys you are holding, never the mouse cursor.
-            Vector2 dir = wish.LengthSquared() > 0.01f ? wish : new Vector2(0, -1);
-            Player.DashT = 0.16f;
-            Player.DashCd = 2.15f;
-            Player.IFrames = MathF.Max(Player.IFrames, 0.16f);
-            speed = IsAbyss ? 980f : 820f;
-            wish = dir;
-            _audio.Dash();
-            Burst(Player.Pos, -dir * 80f, 14, Col.Rgba(120, 230, 255), 220, 9);
-            Ring(Player.Pos, 18, 280, Col.Rgba(80, 210, 255), 0.28f);
+            PilotAbyss(dt, dash);
         }
-
-        // Instant velocity: hold WASD to move, release to stop. No coast, no look-thrust.
-        Player.Vel = wish * speed;
-        Player.Vel3 = Vector3.Zero;
-        Player.Pos += Player.Vel * dt;
-        if (!IsAbyss)
+        else
+        {
+            if (wish.LengthSquared() > 0) wish = V.Norm(wish);
+            float speed = Player.DashT > 0 ? 820f : 355f;
+            if (dash && Player.DashCd <= 0)
+            {
+                Vector2 dir = wish.LengthSquared() > 0.01f ? wish : V.FromAngle(Player.Angle);
+                Player.DashT = 0.16f;
+                Player.DashCd = 2.15f;
+                Player.IFrames = MathF.Max(Player.IFrames, 0.16f);
+                speed = 820f;
+                wish = dir;
+                _audio.Dash();
+                Burst(Player.Pos, -dir * 80f, 14, Col.Rgba(120, 230, 255), 220, 9);
+                Ring(Player.Pos, 18, 280, Col.Rgba(80, 210, 255), 0.28f);
+            }
+            Player.Vel = wish * speed;
+            Player.Pos += Player.Vel * dt;
             Player.Pos = V.ClampTo(Player.Pos, Playfield, Player.Radius);
-
-        if (IsAbyss)
-        {
-            float climb = 0f;
-            if (Raylib.IsKeyDown(KeyboardKey.E)) climb += 28f;
-            if (Raylib.IsKeyDown(KeyboardKey.Q) || Raylib.IsKeyDown(KeyboardKey.LeftControl)) climb -= 28f;
-            Player.Alt += climb * dt;
-            Player.Alt = Math.Clamp(Player.Alt, 0.4f, 90f);
-            RefreshCamera();
-            Player.Aim3 = AimDir3D();
-            Vector2 flat = new(Player.Aim3.X, Player.Aim3.Z);
-            if (flat.LengthSquared() > 0.0001f) aim = flat;
+            if (aim.LengthSquared() > 16f) Player.Angle = V.Ang(aim);
         }
-
-        if (aim.LengthSquared() > (IsAbyss ? 0.0001f : 16f)) Player.Angle = V.Ang(aim);
 
         if (fire && Player.FireCd <= 0)
             FireWeapon();
 
-        if (wish.LengthSquared() > 0.1f || Player.DashT > 0)
+        if ((IsAbyss ? Player.Vel.LengthSquared() > 1f : wish.LengthSquared() > 0.1f) || Player.DashT > 0)
         {
             Vector2 back = Player.Pos - V.FromAngle(Player.Angle) * 18f;
             SpawnParticle(back, -V.FromAngle(Player.Angle) * Rng.Float(40, 120) + V.Perp(V.FromAngle(Player.Angle)) * Rng.Float(-30, 30),
                 Rng.Float(0.12f, 0.28f), Rng.Float(5, 11), Col.Rgba(80, 230, 255, 200), true);
         }
+    }
+
+    void PilotAbyss(float dt, bool dash)
+    {
+        Vector2 md = Raylib.GetMouseDelta();
+        md.X = Math.Clamp(md.X, -90f, 90f);
+        md.Y = Math.Clamp(md.Y, -90f, 90f);
+        const float sens = 0.0026f;
+        Player.Yaw += md.X * sens;
+        Player.Pitch = Math.Clamp(Player.Pitch - md.Y * sens, -1.52f, 1.52f);
+        Player.Aim3 = LookDir();
+        Vector2 flat = new(Player.Aim3.X, Player.Aim3.Z);
+        if (flat.LengthSquared() > 0.0001f) Player.Angle = V.Ang(flat);
+
+        Vector3 fwd = Player.Aim3;
+        Vector3 right = new(MathF.Cos(Player.Yaw), 0f, MathF.Sin(Player.Yaw));
+        if (right.LengthSquared() < 0.0001f) right = Vector3.UnitX;
+        else right = Vector3.Normalize(right);
+
+        Vector3 wish = Vector3.Zero;
+        if (Raylib.IsKeyDown(KeyboardKey.W) || Raylib.IsKeyDown(KeyboardKey.Up)) wish += fwd;
+        if (Raylib.IsKeyDown(KeyboardKey.S) || Raylib.IsKeyDown(KeyboardKey.Down)) wish -= fwd;
+        if (Raylib.IsKeyDown(KeyboardKey.D) || Raylib.IsKeyDown(KeyboardKey.Right)) wish += right;
+        if (Raylib.IsKeyDown(KeyboardKey.A) || Raylib.IsKeyDown(KeyboardKey.Left)) wish -= right;
+        if (Raylib.IsKeyDown(KeyboardKey.E)) wish += Vector3.UnitY;
+        if (Raylib.IsKeyDown(KeyboardKey.Q) || Raylib.IsKeyDown(KeyboardKey.LeftControl)) wish -= Vector3.UnitY;
+
+        if (wish.LengthSquared() > 0.0001f) wish = Vector3.Normalize(wish);
+        float speed = Player.DashT > 0 ? 44f : 26f;
+
+        if (dash && Player.DashCd <= 0)
+        {
+            Vector3 burst = wish.LengthSquared() > 0.0001f ? wish : fwd;
+            wish = burst;
+            speed = 48f;
+            Player.DashT = 0.18f;
+            Player.DashCd = 2.15f;
+            Player.IFrames = MathF.Max(Player.IFrames, 0.18f);
+            _audio.Dash();
+            Burst(Player.Pos, new Vector2(-burst.X, -burst.Z) * 80f, 14, Col.Rgba(120, 230, 255), 220, 9);
+            Ring(Player.Pos, 18, 280, Col.Rgba(80, 210, 255), 0.28f);
+        }
+
+        Player.Vel3 = wish * speed;
+        Player.Pos.X += Player.Vel3.X / WorldScale * dt;
+        Player.Pos.Y += Player.Vel3.Z / WorldScale * dt;
+        Player.Alt += Player.Vel3.Y * dt;
+        Player.Alt = Math.Clamp(Player.Alt, 0.35f, 260f);
+        Player.Vel = new Vector2(Player.Vel3.X / WorldScale, Player.Vel3.Z / WorldScale);
+        RefreshCamera();
     }
 
     void TrySetWeapon(WeaponKind w)
@@ -662,6 +700,8 @@ sealed class World
         Player.Vel3 = Vector3.Zero;
         Player.Alt = 4.5f;
         Player.Aim3 = new Vector3(0, 0, -1);
+        Player.Yaw = 0f;
+        Player.Pitch = -0.18f;
         Banner = "THE ABYSS";
         BannerT = 2.2f;
         RefreshCamera();
@@ -682,36 +722,24 @@ sealed class World
         return new Vector2(w.X / WorldScale + cx, w.Z / WorldScale + cy);
     }
 
-    public void RefreshCamera()
+    public Vector3 LookDir()
     {
-        // Fixed chase offset. Camera follows position only — never mouse aim —
-        // so looking around cannot drag the ship or spin the view.
-        Vector3 p = ToWorld(Player.Pos, Player.Alt);
-        Vector3 shake = new(ShakeOff.X * 0.02f, 0f, ShakeOff.Y * 0.02f);
-        Cam.Target = p + new Vector3(0f, 0.8f, 0f) + shake;
-        Cam.Position = p + new Vector3(0f, 14f, 24f) + shake;
-        Cam.Up = Vector3.UnitY;
-        Cam.FovY = 55f;
-        Cam.Projection = CameraProjection.Perspective;
+        float cp = MathF.Cos(Player.Pitch);
+        var d = new Vector3(MathF.Sin(Player.Yaw) * cp, MathF.Sin(Player.Pitch), -MathF.Cos(Player.Yaw) * cp);
+        return d.LengthSquared() > 0.0001f ? Vector3.Normalize(d) : new Vector3(0, 0, -1);
     }
 
-    Vector3 AimDir3D()
+    public void RefreshCamera()
     {
-        Ray ray = Raylib.GetScreenToWorldRay(Raylib.GetMousePosition(), Cam);
-        if (MathF.Abs(ray.Direction.Y) > 0.0008f)
-        {
-            float t = (Player.Alt - ray.Position.Y) / ray.Direction.Y;
-            if (t > 0.05f)
-            {
-                Vector3 hit = ray.Position + ray.Direction * t;
-                Vector3 from = ToWorld(Player.Pos, Player.Alt);
-                Vector3 dir = hit - from;
-                if (dir.LengthSquared() > 0.0001f) return Vector3.Normalize(dir);
-            }
-        }
-        Vector3 flat = new(ray.Direction.X, 0f, ray.Direction.Z);
-        if (flat.LengthSquared() < 1e-6f) return new Vector3(0, 0, -1);
-        return Vector3.Normalize(flat);
+        Vector3 p = ToWorld(Player.Pos, Player.Alt);
+        Vector3 fwd = LookDir();
+        Player.Aim3 = fwd;
+        Vector3 shake = new(ShakeOff.X * 0.02f, 0f, ShakeOff.Y * 0.02f);
+        Cam.Position = p - fwd * 15.5f + new Vector3(0f, 3.2f, 0f) + shake;
+        Cam.Target = p + fwd * 5.5f + shake;
+        Cam.Up = Vector3.UnitY;
+        Cam.FovY = 60f;
+        Cam.Projection = CameraProjection.Perspective;
     }
 
     public float CombatRadius(Enemy e) => IsAbyss ? MathF.Max(e.Radius * 4f, 64f) : e.Radius;
@@ -762,7 +790,7 @@ sealed class World
             case EnemyKind.Hydra:
                 e.Radius = 68; e.MaxHp = 1100 + _bossIndex * 380; e.Contact = 30; e.Score = 3200 + _bossIndex * 900;
                 e.SpawnIn = 1.1f; e.FireCd = 0.7f; e.Phase = 1;
-                pos = new Vector2(Playfield.X + Playfield.Width * 0.5f, Playfield.Y + 120);
+                pos = Player.Pos + new Vector2(0, -320);
                 e.Pos = pos;
                 Ring(pos, 22, 460, Col.Rgba(180, 60, 255), 0.7f);
                 Shake = 9;
@@ -770,7 +798,7 @@ sealed class World
             default:
                 e.Radius = 62; e.MaxHp = 850 + _bossIndex * 320; e.Contact = 28; e.Score = 2500 + _bossIndex * 800;
                 e.SpawnIn = 1.1f; e.FireCd = 0.8f; e.Phase = 1;
-                pos = new Vector2(Playfield.X + Playfield.Width * 0.5f, Playfield.Y + 110);
+                pos = Player.Pos + new Vector2(0, -300);
                 e.Pos = pos;
                 Ring(pos, 20, 420, Col.Rgba(255, 80, 40), 0.7f);
                 Shake = 8;
@@ -778,6 +806,7 @@ sealed class World
         }
         e.Hp = e.MaxHp;
         e.Angle = V.Ang(Player.Pos - e.Pos);
+        if (IsAbyss) e.Alt = Player.Alt + Rng.Float(-2.5f, 4f);
         Enemies.Add(e);
         Ring(e.Pos, 8, 140, Col.Rgba(180, 80, 255), 0.35f);
     }
@@ -795,6 +824,11 @@ sealed class World
             {
                 e.SpawnIn -= dt;
                 e.Angle = V.Ang(p - e.Pos);
+                if (IsAbyss)
+                {
+                    HuntPlayer(e, dt);
+                    e.Pos += e.Vel * dt;
+                }
                 continue;
             }
 
@@ -906,7 +940,8 @@ sealed class World
                     {
                         e.FireCd = 1.8f;
                         e.Pos = p + V.FromAngle(Rng.Float(0, MathF.Tau)) * Rng.Float(160, 260);
-                        if (!IsAbyss) e.Pos = V.ClampTo(e.Pos, Playfield, e.Radius);
+                        if (IsAbyss) e.Alt = Player.Alt;
+                        else e.Pos = V.ClampTo(e.Pos, Playfield, e.Radius);
                         e.SpawnIn = 0.18f;
                         Vector2 shot = V.Norm(p - e.Pos);
                         SpawnBullet(BulletOwner.Enemy, e.Pos + shot * e.Radius, shot * 380f, 5f, 10f, 2.2f, 0, 0,
@@ -933,6 +968,7 @@ sealed class World
                     break;
             }
 
+            if (IsAbyss) HuntPlayer(e, dt);
             e.Pos += e.Vel * dt;
             if (!IsAbyss)
             {
@@ -941,6 +977,21 @@ sealed class World
                 else
                     e.Pos = V.ClampTo(e.Pos, Expand(Playfield, 8), e.Radius);
             }
+        }
+    }
+
+    void HuntPlayer(Enemy e, float dt)
+    {
+        Vector2 to = Player.Pos - e.Pos;
+        float dist = to.Length();
+        float altGap = Player.Alt - e.Alt;
+        e.Alt += altGap * MathF.Min(1f, 5.5f * dt);
+        e.Alt += MathF.Sign(altGap) * MathF.Min(MathF.Abs(altGap), 28f * dt);
+        if (dist > 180f)
+        {
+            Vector2 dir = dist > 1f ? to / dist : Vector2.Zero;
+            float speed = Math.Clamp(360f + dist * 0.9f, 480f, 2600f);
+            e.Vel = dir * speed;
         }
     }
 
@@ -1109,7 +1160,7 @@ sealed class World
                 if (IsAbyss)
                 {
                     Vector3 bw = ToWorld(b.Pos, b.Alt);
-                    Vector3 ew = ToWorld(e.Pos, 1.15f);
+                    Vector3 ew = ToWorld(e.Pos, e.Alt);
                     float wr = (b.Radius + CombatRadius(e)) * WorldScale;
                     if (Vector3.DistanceSquared(bw, ew) > wr * wr) continue;
                 }
@@ -1154,7 +1205,7 @@ sealed class World
             if (!e.Alive || e.SpawnIn > 0) continue;
             if (IsAbyss)
             {
-                if (Vector3.DistanceSquared(ToWorld(e.Pos, 1.15f), ToWorld(Player.Pos, Player.Alt))
+                if (Vector3.DistanceSquared(ToWorld(e.Pos, e.Alt), ToWorld(Player.Pos, Player.Alt))
                     > MathF.Pow((CombatRadius(e) + PlayerCombatRadius()) * WorldScale, 2f))
                     continue;
             }
@@ -1283,6 +1334,13 @@ sealed class World
                 alt = Player.Alt;
                 if (Player.Aim3.LengthSquared() > 0.01f)
                     velAlt = Vector3.Normalize(Player.Aim3).Y * vel.Length() * WorldScale;
+            }
+            else
+            {
+                alt = Player.Alt;
+                float reach = MathF.Max(40f, vel.Length());
+                velAlt = (Player.Alt - alt) * WorldScale * 0.15f;
+                _ = reach;
             }
         }
         Bullets.Add(new Bullet
