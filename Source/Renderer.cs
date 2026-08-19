@@ -400,7 +400,7 @@ static class Renderer
         }
 
         if (w.Player.Alive)
-            DrawShip3D(w);
+            DrawShip3D(w, c);
 
         foreach (Particle p in w.Particles)
         {
@@ -427,9 +427,12 @@ static class Renderer
             DrawTextCentered(c.Font, f.Text, scr, 16, Col.Fade(f.Color, t));
         }
 
-        DrawVignette(Raylib.GetScreenWidth(), Raylib.GetScreenHeight());
+        int sw2 = Raylib.GetScreenWidth();
+        int sh2 = Raylib.GetScreenHeight();
+        Raylib.DrawRectangleGradientV(0, 0, sw2, 50, Col.Rgba(0, 0, 0, 80), Col.Rgba(0, 0, 0, 0));
+        Raylib.DrawRectangleGradientV(0, sh2 - 50, sw2, 50, Col.Rgba(0, 0, 0, 0), Col.Rgba(0, 0, 0, 90));
         if (w.Player.HurtFlash > 0)
-            Raylib.DrawRectangle(0, 0, Raylib.GetScreenWidth(), Raylib.GetScreenHeight(), Col.Fade(Col.Rgba(180, 20, 30), w.Player.HurtFlash * 1.6f));
+            Raylib.DrawRectangle(0, 0, sw2, sh2, Col.Fade(Col.Rgba(180, 20, 30), w.Player.HurtFlash * 1.6f));
         DrawCrosshair(Raylib.GetMousePosition());
     }
 
@@ -441,47 +444,56 @@ static class Renderer
             Raylib.DrawPlane(Vector3.Zero, new Vector2(96, 74), Col.Rgba(12, 10, 8));
 
         var rng = new Random(4);
-        for (int i = 0; i < 18; i++)
-        {
-            float ang = rng.NextSingle() * MathF.Tau;
-            float rad = 36f + rng.NextSingle() * 18f;
-            var pos = new Vector3(MathF.Cos(ang) * rad, rng.NextSingle() * 3.5f, MathF.Sin(ang) * rad * 0.72f);
-            float s = 2.2f + rng.NextSingle() * 6f;
-            Raylib.DrawCube(pos, s * 0.7f, s, s * 0.55f, Col.Rgba(210, 200, 185));
-            Raylib.DrawCube(pos + new Vector3(0, s * 0.4f, 0), s * 0.35f, s * 0.8f, s * 0.28f, Col.Rgba(235, 228, 210));
-        }
-
-        for (int i = 0; i < 6; i++)
-        {
-            float a = i * MathF.Tau / 6f + 0.15f;
-            var p = new Vector3(MathF.Cos(a) * 28f, 0, MathF.Sin(a) * 21f);
-            Raylib.DrawCylinder(p + new Vector3(0, 3.2f, 0), 0.4f, 1.4f, 8f, 6, Col.Rgba(230, 220, 200));
-            Raylib.DrawSphere(p + new Vector3(0, 7.6f, 0), 0.85f, Col.Rgba(40, 230, 210));
-        }
-
         for (int i = 0; i < 14; i++)
         {
-            float a = w.Time * 0.1f + i * 0.9f;
-            var orb = new Vector3(MathF.Cos(a) * (14 + i), 4.5f + MathF.Sin(w.Time * 0.6f + i) * 1.4f, MathF.Sin(a * 0.8f) * (10 + i * 0.3f));
-            Raylib.DrawSphere(orb, 0.14f + (i % 3) * 0.05f, Col.Rgba(255, 180, 70, 170));
+            float ang = 0.4f + i * 0.42f;
+            float rad = 38f + (i % 5) * 2.4f;
+            var pos = new Vector3(MathF.Cos(ang) * rad, 1.2f + (i % 3) * 0.8f, MathF.Sin(ang) * rad * 0.7f);
+            float s = 3.2f + (i % 4) * 1.1f;
+            Raylib.DrawCube(pos, s * 0.55f, s * 1.6f, s * 0.4f, Col.Rgba(228, 214, 190));
+            Raylib.DrawCylinder(pos + new Vector3(0, s * 0.7f, 0), 0.15f, 0.45f, s, 5, Col.Rgba(240, 230, 205));
         }
+
+        for (int i = 0; i < 5; i++)
+        {
+            float a = i * MathF.Tau / 5f + 0.3f;
+            var p = new Vector3(MathF.Cos(a) * 30f, 0, MathF.Sin(a) * 22f);
+            Raylib.DrawCylinder(p + new Vector3(0, 4.4f, 0), 0.28f, 0.9f, 9.2f, 6, Col.Rgba(236, 226, 200));
+            Raylib.DrawSphere(p + new Vector3(0, 9.4f, 0), 0.7f, Col.Rgba(40, 230, 210));
+            Raylib.DrawCylinderEx(p + new Vector3(-2.2f, 2.5f, 0), p + new Vector3(2.2f, 2.5f, 0), 0.18f, 0.18f, 5, Col.Rgba(220, 210, 185));
+        }
+
+        for (int i = 0; i < 18; i++)
+        {
+            float a = w.Time * 0.08f + i * 0.7f;
+            var orb = new Vector3(MathF.Cos(a) * (12 + i * 0.8f), 3.8f + MathF.Sin(w.Time * 0.5f + i) * 1.2f, MathF.Sin(a * 0.8f) * (9 + i * 0.25f));
+            Raylib.DrawSphere(orb, 0.12f + (i % 3) * 0.04f, Col.Rgba(255, 190, 80, 160));
+        }
+        _ = rng;
     }
 
-    static void DrawShip3D(World w)
+    static void DrawShip3D(World w, ContentPack c)
     {
-        Vector3 p = w.ToWorld(w.Player.Pos) + new Vector3(0, 0.9f, 0);
-        Color body = w.Player.HurtFlash > 0 ? Col.Rgba(255, 120, 120) : Col.Rgba(235, 225, 200);
-        Rlgl.PushMatrix();
-        Rlgl.Translatef(p.X, p.Y, p.Z);
-        Rlgl.Rotatef(-w.Player.Angle * Raylib.RAD2DEG, 0, 1, 0);
-        Raylib.DrawCube(new Vector3(0.35f, 0, 0), 1.8f, 0.38f, 0.55f, body);
-        Raylib.DrawCube(new Vector3(-0.1f, 0, -0.85f), 0.7f, 0.12f, 1.4f, Col.Rgba(40, 210, 190));
-        Raylib.DrawCube(new Vector3(-0.1f, 0, 0.85f), 0.7f, 0.12f, 1.4f, Col.Rgba(40, 210, 190));
-        Raylib.DrawSphere(new Vector3(0.55f, 0.18f, 0), 0.18f, Col.Rgba(20, 40, 50));
-        Raylib.DrawSphere(new Vector3(-0.7f, 0.05f, 0), 0.2f, Col.Rgba(255, 180, 70));
-        Rlgl.PopMatrix();
+        Vector3 feet = w.ToWorld(w.Player.Pos);
+        Raylib.DrawCircle3D(feet + new Vector3(0, 0.04f, 0), 1.1f, Vector3.UnitX, 90, Col.Rgba(0, 0, 0, 120));
+        Color tint = w.Player.HurtFlash > 0 ? Col.Rgba(255, 140, 140) : Color.White;
+        if (c.Player.Id != 0)
+        {
+            float size = 4.6f;
+            Vector3 center = feet + new Vector3(0, size * 0.42f, 0);
+            Raylib.DrawBillboard(w.Cam, c.Player, center, size, tint);
+        }
+        else
+        {
+            Vector3 p = feet + new Vector3(0, 0.9f, 0);
+            Rlgl.PushMatrix();
+            Rlgl.Translatef(p.X, p.Y, p.Z);
+            Rlgl.Rotatef(-w.Player.Angle * Raylib.RAD2DEG, 0, 1, 0);
+            Raylib.DrawCube(new Vector3(0.35f, 0, 0), 1.8f, 0.38f, 0.55f, Col.Rgba(235, 225, 200));
+            Rlgl.PopMatrix();
+        }
         if (w.Player.Shield > 0)
-            Raylib.DrawSphereWires(p, 1.35f, 8, 8, Col.Rgba(40, 230, 210, 180));
+            Raylib.DrawSphereWires(feet + new Vector3(0, 1.1f, 0), 1.5f, 8, 8, Col.Rgba(40, 230, 210, 180));
     }
 
     static void DrawAlien3D(World w, ContentPack c, Enemy e)

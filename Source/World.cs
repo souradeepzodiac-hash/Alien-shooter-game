@@ -141,6 +141,11 @@ sealed class World
 
     public void SyncPlayfield()
     {
+        if (IsAbyss)
+        {
+            Playfield = new Rectangle(0, 0, 96f / WorldScale, 74f / WorldScale);
+            return;
+        }
         int w = Raylib.GetScreenWidth();
         int h = Raylib.GetScreenHeight();
         Playfield = new Rectangle(18, 18, w - 36, h - 36);
@@ -215,6 +220,24 @@ sealed class World
             fire = true;
             if (Player.DashCd <= 0 && Rng.Chance(0.008f)) dash = true;
         }
+        else if (IsAbyss)
+        {
+            Vector2 local = Vector2.Zero;
+            if (Raylib.IsKeyDown(KeyboardKey.A) || Raylib.IsKeyDown(KeyboardKey.Left)) local.X -= 1;
+            if (Raylib.IsKeyDown(KeyboardKey.D) || Raylib.IsKeyDown(KeyboardKey.Right)) local.X += 1;
+            if (Raylib.IsKeyDown(KeyboardKey.W) || Raylib.IsKeyDown(KeyboardKey.Up)) local.Y += 1;
+            if (Raylib.IsKeyDown(KeyboardKey.S) || Raylib.IsKeyDown(KeyboardKey.Down)) local.Y -= 1;
+            if (local.LengthSquared() > 0)
+            {
+                local = V.Norm(local);
+                Vector3 look = Cam.Target - Cam.Position;
+                Vector2 fwd = V.Norm(new Vector2(look.X, look.Z));
+                if (fwd.LengthSquared() < 0.01f) fwd = new Vector2(0, -1);
+                Vector2 right = new Vector2(-fwd.Y, fwd.X);
+                Vector2 world = right * local.X + fwd * local.Y;
+                wish = new Vector2(world.X, world.Y);
+            }
+        }
         else
         {
             if (Raylib.IsKeyDown(KeyboardKey.A) || Raylib.IsKeyDown(KeyboardKey.Left)) wish.X -= 1;
@@ -232,8 +255,17 @@ sealed class World
         if (wheel < 0) CycleWeapon(-1);
 
         if (wish.LengthSquared() > 0) wish = V.Norm(wish);
-        float speed = Player.DashT > 0 ? 820f : 355f;
-        Player.Vel = wish * speed;
+        if (IsAbyss)
+        {
+            float speed = Player.DashT > 0 ? 980f : 640f;
+            Vector2 desired = wish * speed;
+            Player.Vel = Vector2.Lerp(Player.Vel, desired, 1f - MathF.Exp(-12f * dt));
+        }
+        else
+        {
+            float speed = Player.DashT > 0 ? 820f : 355f;
+            Player.Vel = wish * speed;
+        }
         Player.Pos += Player.Vel * dt;
         Player.Pos = V.ClampTo(Player.Pos, Playfield, Player.Radius);
 
@@ -619,7 +651,8 @@ sealed class World
         Player.IFrames = 1.4f;
         Player.Alive = true;
         Player.HurtFlash = 0;
-        Player.Pos = new Vector2(Playfield.X + Playfield.Width * 0.5f, Playfield.Y + Playfield.Height * 0.7f);
+        SyncPlayfield();
+        Player.Pos = new Vector2(Playfield.X + Playfield.Width * 0.5f, Playfield.Y + Playfield.Height * 0.5f);
         Player.Vel = Vector2.Zero;
         Banner = "THE ABYSS";
         BannerT = 2.2f;
@@ -646,9 +679,9 @@ sealed class World
         Vector3 p = ToWorld(Player.Pos);
         Vector3 shake = new(ShakeOff.X * 0.02f, 0f, ShakeOff.Y * 0.02f);
         Cam.Target = p + new Vector3(0f, 1.3f, 0f) + shake;
-        Cam.Position = p + new Vector3(0f, 20f, 32f) + shake;
+        Cam.Position = p + new Vector3(0f, 16f, 28f) + shake;
         Cam.Up = Vector3.UnitY;
-        Cam.FovY = 52f;
+        Cam.FovY = 55f;
         Cam.Projection = CameraProjection.Perspective;
     }
 
