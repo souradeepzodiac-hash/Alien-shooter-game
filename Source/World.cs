@@ -210,17 +210,10 @@ sealed class World
 
         Vector2 wish = Vector2.Zero;
         Vector2 aim = Raylib.GetMousePosition() - Player.Pos;
-        bool fire = Raylib.IsMouseButtonDown(MouseButton.Left) || (!IsAbyss && Raylib.IsKeyDown(KeyboardKey.Space));
+        bool fire = Raylib.IsMouseButtonDown(MouseButton.Left) || Raylib.IsKeyDown(KeyboardKey.Space);
         bool dash = Raylib.IsMouseButtonPressed(MouseButton.Right)
                     || Raylib.IsKeyPressed(KeyboardKey.LeftShift)
                     || Raylib.IsKeyPressed(KeyboardKey.RightShift);
-
-        if (IsAbyss)
-        {
-            if (Cam.FovY < 1f) RefreshCamera();
-            Player.Aim3 = AimDir3D();
-            aim = new Vector2(Player.Aim3.X, Player.Aim3.Z);
-        }
 
         if (AutoPlay)
         {
@@ -229,11 +222,6 @@ sealed class World
             aim = n is null ? new Vector2(0, -1) : n.Pos - Player.Pos;
             fire = true;
             if (Player.DashCd <= 0 && Rng.Chance(0.008f)) dash = true;
-        }
-        else if (IsAbyss)
-        {
-            FlyAbyss(dt, dash);
-            dash = false;
         }
         else
         {
@@ -251,13 +239,24 @@ sealed class World
         if (wheel > 0) CycleWeapon(1);
         if (wheel < 0) CycleWeapon(-1);
 
-        if (!IsAbyss)
+        if (wish.LengthSquared() > 0) wish = V.Norm(wish);
+        float speed = Player.DashT > 0 ? (IsAbyss ? 980f : 820f) : (IsAbyss ? 520f : 355f);
+        Player.Vel = wish * speed;
+        Player.Pos += Player.Vel * dt;
+        Player.Pos = V.ClampTo(Player.Pos, Playfield, Player.Radius);
+
+        if (IsAbyss)
         {
-            if (wish.LengthSquared() > 0) wish = V.Norm(wish);
-            float speed = Player.DashT > 0 ? 820f : 355f;
-            Player.Vel = wish * speed;
-            Player.Pos += Player.Vel * dt;
-            Player.Pos = V.ClampTo(Player.Pos, Playfield, Player.Radius);
+            float climb = 0f;
+            if (Raylib.IsKeyDown(KeyboardKey.E)) climb += 18f;
+            if (Raylib.IsKeyDown(KeyboardKey.Q) || Raylib.IsKeyDown(KeyboardKey.LeftControl)) climb -= 18f;
+            Player.Alt += climb * dt;
+            Player.Alt = Math.Clamp(Player.Alt, 1.2f, 22f);
+            if (Cam.FovY < 1f) RefreshCamera();
+            Player.Aim3 = AimDir3D();
+            Vector2 flat = new(Player.Aim3.X, Player.Aim3.Z);
+            if (flat.LengthSquared() > 0.0001f) aim = flat;
+            RefreshCamera();
         }
 
         if (aim.LengthSquared() > (IsAbyss ? 0.0001f : 16f)) Player.Angle = V.Ang(aim);
@@ -680,66 +679,31 @@ sealed class World
     public void RefreshCamera()
     {
         Vector3 p = ToWorld(Player.Pos, Player.Alt);
-        Vector3 back = -Player.Aim3;
-        if (back.LengthSquared() < 0.01f) back = new Vector3(0, 0.2f, 1);
-        back = Vector3.Normalize(back) * 15f;
-        back.Y = Math.Clamp(back.Y + 4.2f, 2.5f, 12f);
         Vector3 shake = new(ShakeOff.X * 0.02f, 0f, ShakeOff.Y * 0.02f);
-        Cam.Target = p + Player.Aim3 * 2.5f + shake;
-        Cam.Position = p + back + shake;
+        Cam.Target = p + new Vector3(0f, 0.8f, 0f) + shake;
+        Cam.Position = p + new Vector3(0f, 14f, 24f) + shake;
         Cam.Up = Vector3.UnitY;
-        Cam.FovY = 58f;
+        Cam.FovY = 55f;
         Cam.Projection = CameraProjection.Perspective;
     }
 
     Vector3 AimDir3D()
     {
         Ray ray = Raylib.GetScreenToWorldRay(Raylib.GetMousePosition(), Cam);
-        Vector3 d = ray.Direction;
-        if (d.LengthSquared() < 1e-8f) return new Vector3(0, 0, -1);
-        return Vector3.Normalize(d);
-    }
-
-    void FlyAbyss(float dt, bool dash)
-    {
-        Vector3 fwd = Player.Aim3.LengthSquared() > 0.01f ? Vector3.Normalize(Player.Aim3) : new Vector3(0, 0, -1);
-        Vector3 right = Vector3.Cross(fwd, Vector3.UnitY);
-        if (right.LengthSquared() < 0.01f) right = Vector3.UnitX;
-        else right = Vector3.Normalize(right);
-
-        Vector3 wish = Vector3.Zero;
-        if (Raylib.IsKeyDown(KeyboardKey.W) || Raylib.IsKeyDown(KeyboardKey.Up)) wish += fwd;
-        if (Raylib.IsKeyDown(KeyboardKey.S) || Raylib.IsKeyDown(KeyboardKey.Down)) wish -= fwd;
-        if (Raylib.IsKeyDown(KeyboardKey.D) || Raylib.IsKeyDown(KeyboardKey.Right)) wish += right;
-        if (Raylib.IsKeyDown(KeyboardKey.A) || Raylib.IsKeyDown(KeyboardKey.Left)) wish -= right;
-        if (Raylib.IsKeyDown(KeyboardKey.Space) || Raylib.IsKeyDown(KeyboardKey.E)) wish += Vector3.UnitY;
-        if (Raylib.IsKeyDown(KeyboardKey.LeftControl) || Raylib.IsKeyDown(KeyboardKey.Q) || Raylib.IsKeyDown(KeyboardKey.C))
-            wish -= Vector3.UnitY;
-
-        if (wish.LengthSquared() > 0) wish = Vector3.Normalize(wish);
-        float speed = Player.DashT > 0 ? 38f : 22f;
-        Player.Vel3 = Vector3.Lerp(Player.Vel3, wish * speed, 1f - MathF.Exp(-9f * dt));
-
-        if (dash && Player.DashCd <= 0)
+        if (MathF.Abs(ray.Direction.Y) > 0.0008f)
         {
-            Vector3 burst = wish.LengthSquared() > 0 ? wish : fwd;
-            Player.Vel3 = burst * 42f;
-            Player.DashT = 0.2f;
-            Player.DashCd = 1.6f;
-            Player.IFrames = MathF.Max(Player.IFrames, 0.2f);
-            _audio.Dash();
+            float t = (Player.Alt - ray.Position.Y) / ray.Direction.Y;
+            if (t > 0.05f)
+            {
+                Vector3 hit = ray.Position + ray.Direction * t;
+                Vector3 from = ToWorld(Player.Pos, Player.Alt);
+                Vector3 dir = hit - from;
+                if (dir.LengthSquared() > 0.0001f) return Vector3.Normalize(dir);
+            }
         }
-
-        Player.Pos.X += Player.Vel3.X / WorldScale * dt;
-        Player.Pos.Y += Player.Vel3.Z / WorldScale * dt;
-        Player.Alt += Player.Vel3.Y * dt;
-
-        Rectangle box = new(Playfield.X - Playfield.Width * 0.15f, Playfield.Y - Playfield.Height * 0.15f,
-            Playfield.Width * 1.3f, Playfield.Height * 1.3f);
-        Player.Pos = V.ClampTo(Player.Pos, box, 8f);
-        Player.Alt = Math.Clamp(Player.Alt, 0.7f, 34f);
-        Player.Vel = new Vector2(Player.Vel3.X / WorldScale, Player.Vel3.Z / WorldScale);
-        RefreshCamera();
+        Vector3 flat = new(ray.Direction.X, 0f, ray.Direction.Z);
+        if (flat.LengthSquared() < 1e-6f) return new Vector3(0, 0, -1);
+        return Vector3.Normalize(flat);
     }
 
     public float CombatRadius(Enemy e) => IsAbyss ? MathF.Max(e.Radius * 4f, 64f) : e.Radius;
