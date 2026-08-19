@@ -12,6 +12,8 @@ static class GameApp
         bool resultSmoke = args.Any(a => a.Equals("--result-smoke", StringComparison.OrdinalIgnoreCase));
         bool winSmoke = args.Any(a => a.Equals("--win-smoke", StringComparison.OrdinalIgnoreCase));
         bool loseSmoke = args.Any(a => a.Equals("--lose-smoke", StringComparison.OrdinalIgnoreCase));
+        bool gateSmoke = args.Any(a => a.Equals("--gate-smoke", StringComparison.OrdinalIgnoreCase));
+        bool abyssSmoke = args.Any(a => a.Equals("--abyss-smoke", StringComparison.OrdinalIgnoreCase));
         string? shot = null;
         int startWave = 0;
         for (int i = 0; i < args.Length - 1; i++)
@@ -59,12 +61,14 @@ static class GameApp
             screen = Screen.Playing;
             audio.PlayBattle();
         }
-        else if (resultSmoke || winSmoke || loseSmoke)
+        else if (resultSmoke || winSmoke || loseSmoke || gateSmoke || abyssSmoke)
         {
-            world.PrepareDemoResult(winSmoke ? "win" : loseSmoke ? "lose" : "clear");
-            screen = winSmoke ? Screen.Victory : loseSmoke ? Screen.GameOver : Screen.LevelClear;
+            string kind = winSmoke ? "win" : loseSmoke ? "lose" : gateSmoke ? "gate" : abyssSmoke ? "abyss" : "clear";
+            world.PrepareDemoResult(kind);
+            screen = kind == "win" ? Screen.Victory : kind == "lose" ? Screen.GameOver : kind == "abyss" ? Screen.Playing : Screen.LevelClear;
             menu.Reset();
-            audio.PlayTheme();
+            if (kind == "abyss") audio.PlayBattle();
+            else audio.PlayTheme();
         }
         else if (smoke)
         {
@@ -177,10 +181,11 @@ static class GameApp
                     else if (g == 2) Quit();
                     break;
                 case Screen.LevelClear:
-                    int cleared = menuLock > 0 ? -1 : Screens.UpdateLevelClear(menu);
+                    int cleared = menuLock > 0 ? -1 : Screens.UpdateLevelClear(world, menu);
                     if (cleared == 0)
                     {
-                        world.ContinueNextLevel();
+                        if (world.WantsWorldGate) world.EnterAbyss();
+                        else world.ContinueNextLevel();
                         screen = Screen.Playing;
                         audio.PlayBattle();
                         audio.PauseMusic(false);
@@ -234,10 +239,10 @@ static class GameApp
             }
             Raylib.EndDrawing();
 
-            if (smoke || menuSmoke || resultSmoke || winSmoke || loseSmoke || clearTest)
+            if (smoke || menuSmoke || resultSmoke || winSmoke || loseSmoke || clearTest || gateSmoke || abyssSmoke)
             {
                 smokeT += dt;
-                float wait = menuSmoke || resultSmoke || winSmoke || loseSmoke ? 1.15f : clearTest ? 1.4f : 3.4f;
+                float wait = menuSmoke || resultSmoke || winSmoke || loseSmoke || gateSmoke ? 1.15f : clearTest ? 1.4f : abyssSmoke ? 2.2f : 3.4f;
                 if (smokeT >= wait)
                 {
                     string dest = shot ?? Path.Combine(AppContext.BaseDirectory, "smoke.png");

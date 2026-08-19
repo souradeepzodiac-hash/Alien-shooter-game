@@ -107,7 +107,8 @@ static class Screens
             "PULSE is rapid. SPREAD covers arcs. RAIL pierces. NOVA detonates.",
             "Weapon crates upgrade the equipped gun, then unlock the next.",
             "Hull orbs repair. Hex tokens raise a shield. Gold cores start Overdrive.",
-            "Clear all 10 levels to win. Every fifth level a Leviathan arrives.",
+            "Clear 10 Rift levels, then enter the 3D Abyss for 10 more alien stages.",
+            "Every fifth Rift level a Leviathan arrives. In the Abyss, Hydras hunt you.",
             "After each level, review your result and choose NEXT LEVEL or QUIT.",
             "If your hull hits zero you lose that run. Retry the level or quit.",
             "Combo kills multiply score. ESC pauses. F11 fullscreen. M mutes.",
@@ -129,7 +130,7 @@ static class Screens
         int sh = Raylib.GetScreenHeight();
         Raylib.DrawRectangle(0, 0, sw, sh, Col.Rgba(4, 6, 12, 160));
         Renderer.DrawTextCentered(c.Font, "PAUSED", new Vector2(sw * 0.5f, sh * 0.22f), 48, Color.White);
-        Renderer.DrawTextCentered(c.Font, $"LEVEL  {Math.Max(1, w.Wave)} / {World.FinalLevel}", new Vector2(sw * 0.5f, sh * 0.22f + 42), 18, Col.Rgba(180, 220, 240));
+        Renderer.DrawTextCentered(c.Font, $"{w.WorldName}   LEVEL  {Math.Max(1, w.Wave)} / {World.FinalLevel}", new Vector2(sw * 0.5f, sh * 0.22f + 42), 18, Col.Rgba(180, 220, 240));
         var items = PauseItems;
         var rects = ButtonColumn(sw, sh * 0.36f, items.Length);
         menu.DrawButtons(c, items, rects);
@@ -170,18 +171,23 @@ static class Screens
         int sw = Raylib.GetScreenWidth();
         int sh = Raylib.GetScreenHeight();
         Raylib.DrawRectangle(0, 0, sw, sh, Col.Rgba(4, 10, 18, 200));
-        DrawResultCard(c, sw * 0.5f, sh * 0.16f, "LEVEL CLEARED", $"LEVEL {w.Wave}  COMPLETE", Col.Rgba(90, 230, 180), w, lost: false);
-        var items = ClearItems;
+        string title = w.WantsWorldGate ? "RIFT CONQUERED" : "LEVEL CLEARED";
+        string sub = w.WantsWorldGate ? "A NEW 3D WORLD OPENS" : $"{w.WorldName}  LEVEL {w.Wave}  COMPLETE";
+        DrawResultCard(c, sw * 0.5f, sh * 0.16f, title, sub, w.WantsWorldGate ? Col.Rgba(210, 140, 255) : Col.Rgba(90, 230, 180), w, lost: false);
+        var items = ClearItemsFor(w);
         var rects = ButtonColumn(sw, sh * 0.58f, items.Length);
         menu.DrawButtons(c, items, rects);
     }
 
     static readonly string[] ClearItems = ["NEXT LEVEL", "MAIN MENU", "QUIT GAME"];
+    static readonly string[] GateItems = ["ENTER THE ABYSS", "MAIN MENU", "QUIT GAME"];
+    static string[] ClearItemsFor(World w) => w.WantsWorldGate ? GateItems : ClearItems;
 
-    public static int UpdateLevelClear(MenuController menu)
+    public static int UpdateLevelClear(World w, MenuController menu)
     {
-        var rects = ButtonColumn(Raylib.GetScreenWidth(), Raylib.GetScreenHeight() * 0.58f, ClearItems.Length);
-        return menu.Update(ClearItems, rects);
+        var items = ClearItemsFor(w);
+        var rects = ButtonColumn(Raylib.GetScreenWidth(), Raylib.GetScreenHeight() * 0.58f, items.Length);
+        return menu.Update(items, rects);
     }
 
     public static void DrawVictory(World w, ContentPack c, MenuController menu)
@@ -190,7 +196,7 @@ static class Screens
         int sw = Raylib.GetScreenWidth();
         int sh = Raylib.GetScreenHeight();
         Raylib.DrawRectangle(0, 0, sw, sh, Col.Rgba(4, 10, 16, 170));
-        DrawResultCard(c, sw * 0.5f, sh * 0.16f, "YOU WON", "THE RIFT IS SEALED", Col.Rgba(255, 220, 90), w, lost: false);
+        DrawResultCard(c, sw * 0.5f, sh * 0.16f, "YOU WON", "RIFT AND ABYSS ARE SEALED", Col.Rgba(255, 220, 90), w, lost: false);
         var items = WinItems;
         var rects = ButtonColumn(sw, sh * 0.58f, items.Length);
         menu.DrawButtons(c, items, rects);
@@ -211,7 +217,7 @@ static class Screens
 
         float y = top + 88;
         DrawStat(c, cx, y, "TOTAL SCORE", $"{w.Score:N0}");
-        DrawStat(c, cx, y + 26, lost ? "LEVEL REACHED" : "LEVEL", $"{Math.Max(1, w.Wave)} / {World.FinalLevel}");
+        DrawStat(c, cx, y + 26, lost ? "LEVEL REACHED" : "LEVEL", $"{w.WorldName}  {Math.Max(1, w.Wave)} / {World.FinalLevel}");
         DrawStat(c, cx, y + 52, "KILLS", $"{w.Kills}   (this level {w.LevelKills})");
         DrawStat(c, cx, y + 78, "LEVEL TIME", FormatTime(w.LevelTime));
         if (!lost)

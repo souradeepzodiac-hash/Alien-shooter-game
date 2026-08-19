@@ -10,7 +10,12 @@ Double-click `Play.bat`, or run:
 
 High scores are saved in `%APPDATA%\VoidHunter\save.json`.
 
-There are **10 levels**. Clear a level to see your result, then choose **Next Level**. Beat level 10 to win. If your hull reaches zero you lose and can retry that level or quit. Quit is available from the main menu, pause menu, and result screens.
+There are two worlds, **10 levels each**.
+
+1. **Rift** — top-down twin-stick swarm.
+2. **Abyss** — unlocked after Rift 10. A 3D arena with new aliens (Prism, Hunter, Wraith, Spire) and Hydra bosses.
+
+Clear a level to see your result, then choose **Next Level**. After Rift 10 choose **Enter the Abyss**. Beat Abyss 10 to win. If your hull reaches zero you lose and can retry that level or quit.
 
 ## Controls
 
@@ -34,7 +39,7 @@ There are **10 levels**. Clear a level to see your result, then choose **Next Le
 
 Weapon crates upgrade the equipped gun, then unlock the next. Hull orbs repair. Hex tokens raise a shield. Gold cores start Overdrive.
 
-Every fifth level a Leviathan arrives. Pause with Esc for Resume, Restart Level, Main Menu, or Quit Game.
+Every fifth Rift level a Leviathan arrives. In the Abyss, Hydras take that slot. Pause with Esc for Resume, Restart Level, Main Menu, or Quit Game.
 
 ## Build
 

@@ -7,6 +7,12 @@ static class Renderer
 {
     public static void DrawWorld(World w, ContentPack c)
     {
+        if (w.IsAbyss)
+        {
+            DrawAbyss(w, c);
+            return;
+        }
+
         int sw = Raylib.GetScreenWidth();
         int sh = Raylib.GetScreenHeight();
         Vector2 shake = w.ShakeOff;
@@ -200,7 +206,8 @@ static class Renderer
         if (w.Combo > 1)
             DrawText(c.Font, $"COMBO  x{w.Combo}", new Vector2(sw - 28, 70), 18, Col.Rgba(255, 210, 90), true);
 
-        DrawTextCentered(c.Font, $"LEVEL {Math.Max(1, w.Wave)} / {World.FinalLevel}", new Vector2(sw * 0.5f, 26), 22, Col.Rgba(180, 230, 255));
+        DrawTextCentered(c.Font, w.WorldName, new Vector2(sw * 0.5f, 14), 14, w.IsAbyss ? Col.Rgba(220, 140, 255) : Col.Rgba(140, 210, 240));
+        DrawTextCentered(c.Font, $"LEVEL {Math.Max(1, w.Wave)} / {World.FinalLevel}", new Vector2(sw * 0.5f, 34), 22, Col.Rgba(180, 230, 255));
 
         string wpn = $"{World.WeaponName(w.Player.Weapon)}  L{Math.Max(1, w.Player.Levels[(int)w.Player.Weapon])}";
         if (w.Player.Overdrive > 0) wpn += $"  OD {w.Player.Overdrive:0.0}";
@@ -226,7 +233,9 @@ static class Renderer
         if (boss is not null)
         {
             float t = boss.MaxHp <= 0 ? 0 : boss.Hp / boss.MaxHp;
-            DrawBar(sw * 0.5f - 220, 52, 440, 14, t, Col.Rgba(30, 10, 10, 200), Col.Rgba(255, 70, 50), "LEVIATHAN");
+            string name = boss.Kind == EnemyKind.Hydra ? "HYDRA" : "LEVIATHAN";
+            DrawBar(sw * 0.5f - 220, 58, 440, 14, t, Col.Rgba(30, 10, 10, 200),
+                boss.Kind == EnemyKind.Hydra ? Col.Rgba(190, 70, 255) : Col.Rgba(255, 70, 50), name);
         }
 
         if (w.BannerT > 0 && w.Banner.Length > 0)
@@ -308,6 +317,10 @@ static class Renderer
         EnemyKind.Bruiser => Col.Rgba(255, 90, 50),
         EnemyKind.Wasp => Col.Rgba(255, 200, 60),
         EnemyKind.Spitter => Col.Rgba(70, 230, 180),
+        EnemyKind.Prism => Col.Rgba(255, 80, 210),
+        EnemyKind.Hunter => Col.Rgba(255, 150, 50),
+        EnemyKind.Wraith => Col.Rgba(160, 90, 255),
+        EnemyKind.Spire => Col.Rgba(255, 210, 80),
         _ => Col.Rgba(255, 80, 40),
     };
 
@@ -341,5 +354,155 @@ static class Renderer
         else Raylib.ClearBackground(Col.Rgba(6, 8, 16));
         Raylib.DrawRectangle(0, 0, sw, sh, Col.Rgba(4, 6, 14, 120 + (int)(20 * MathF.Sin(time))));
         DrawVignette(sw, sh);
+    }
+
+    static void DrawAbyss(World w, ContentPack c)
+    {
+        w.RefreshCamera();
+        Raylib.ClearBackground(Col.Rgba(8, 4, 14));
+        Raylib.BeginMode3D(w.Cam);
+
+        Raylib.DrawPlane(Vector3.Zero, new Vector2(92, 68), Col.Rgba(18, 8, 28));
+        Raylib.DrawGrid(28, 2.4f);
+        DrawArenaWalls();
+
+        for (int i = 0; i < 12; i++)
+        {
+            float a = w.Time * 0.15f + i * 0.7f;
+            var orb = new Vector3(MathF.Cos(a) * (18 + i), 6f + MathF.Sin(w.Time + i) * 1.4f, MathF.Sin(a * 0.8f) * (12 + i * 0.4f));
+            Raylib.DrawSphere(orb, 0.18f, Col.Rgba(180, 80, 255, 140));
+        }
+
+        foreach (Pickup p in w.Pickups)
+        {
+            if (!p.Alive) continue;
+            Vector3 pos = w.ToWorld(p.Pos) + new Vector3(0, 1.2f + MathF.Sin(p.Age * 3.4f) * 0.25f, 0);
+            Color col = PickupGlow(p.Kind);
+            Raylib.DrawSphere(pos, 0.55f, col);
+            Raylib.DrawSphere(pos, 0.28f, Color.White);
+            Raylib.DrawCircle3D(w.ToWorld(p.Pos), 0.9f, Vector3.UnitX, 90, Col.Fade(col, 0.45f));
+        }
+
+        foreach (Bullet b in w.Bullets)
+        {
+            if (!b.Alive) continue;
+            Vector3 pos = w.ToWorld(b.Pos) + new Vector3(0, 0.7f, 0);
+            Raylib.DrawSphere(pos, MathF.Max(0.18f, b.Radius * World.WorldScale * 0.9f), b.Tint);
+        }
+
+        foreach (Enemy e in w.Enemies)
+        {
+            if (!e.Alive) continue;
+            DrawAlien3D(w, e);
+        }
+
+        if (w.Player.Alive)
+            DrawShip3D(w);
+
+        foreach (Particle p in w.Particles)
+        {
+            if (!p.Alive) continue;
+            float t = Math.Clamp(p.Life / p.MaxLife, 0f, 1f);
+            Vector3 pos = w.ToWorld(p.Pos) + new Vector3(0, 0.6f, 0);
+            Raylib.DrawSphere(pos, MathF.Max(0.06f, p.Size * World.WorldScale * 0.35f * t), Col.Fade(p.Color, t));
+        }
+
+        foreach (RingFx r in w.Rings)
+        {
+            if (!r.Alive) continue;
+            float t = Math.Clamp(r.Life / r.MaxLife, 0f, 1f);
+            Raylib.DrawCircle3D(w.ToWorld(r.Pos) + new Vector3(0, 0.05f, 0), r.Radius * World.WorldScale, Vector3.UnitX, 90, Col.Fade(r.Color, t));
+        }
+
+        Raylib.EndMode3D();
+
+        foreach (Floater f in w.Floaters)
+        {
+            if (!f.Alive) continue;
+            float t = Math.Clamp(f.Life / f.MaxLife, 0f, 1f);
+            Vector2 scr = Raylib.GetWorldToScreen(w.ToWorld(f.Pos) + new Vector3(0, 2.2f, 0), w.Cam);
+            DrawTextCentered(c.Font, f.Text, scr, 16, Col.Fade(f.Color, t));
+        }
+
+        DrawVignette(Raylib.GetScreenWidth(), Raylib.GetScreenHeight());
+        if (w.Player.HurtFlash > 0)
+            Raylib.DrawRectangle(0, 0, Raylib.GetScreenWidth(), Raylib.GetScreenHeight(), Col.Fade(Col.Rgba(180, 20, 30), w.Player.HurtFlash * 1.6f));
+        DrawCrosshair(Raylib.GetMousePosition());
+    }
+
+    static void DrawArenaWalls()
+    {
+        Color wall = Col.Rgba(40, 16, 58);
+        Color rim = Col.Rgba(160, 60, 220);
+        Raylib.DrawCube(new Vector3(0, 1.2f, -34), 92, 2.4f, 1.2f, wall);
+        Raylib.DrawCube(new Vector3(0, 1.2f, 34), 92, 2.4f, 1.2f, wall);
+        Raylib.DrawCube(new Vector3(-46, 1.2f, 0), 1.2f, 2.4f, 68, wall);
+        Raylib.DrawCube(new Vector3(46, 1.2f, 0), 1.2f, 2.4f, 68, wall);
+        foreach (var c in new[] { new Vector3(-40, 3.5f, -28), new Vector3(40, 3.5f, -28), new Vector3(-40, 3.5f, 28), new Vector3(40, 3.5f, 28) })
+        {
+            Raylib.DrawCylinder(c, 0.7f, 1.1f, 7f, 8, wall);
+            Raylib.DrawSphere(c + new Vector3(0, 4f, 0), 0.55f, rim);
+        }
+    }
+
+    static void DrawShip3D(World w)
+    {
+        Vector3 p = w.ToWorld(w.Player.Pos) + new Vector3(0, 0.9f, 0);
+        Color body = w.Player.HurtFlash > 0 ? Col.Rgba(255, 120, 120) : Col.Rgba(210, 230, 245);
+        Rlgl.PushMatrix();
+        Rlgl.Translatef(p.X, p.Y, p.Z);
+        Rlgl.Rotatef(-w.Player.Angle * Raylib.RAD2DEG, 0, 1, 0);
+        Raylib.DrawCube(new Vector3(0.35f, 0, 0), 1.8f, 0.38f, 0.55f, body);
+        Raylib.DrawCube(new Vector3(-0.1f, 0, -0.85f), 0.7f, 0.12f, 1.4f, Col.Rgba(70, 200, 230));
+        Raylib.DrawCube(new Vector3(-0.1f, 0, 0.85f), 0.7f, 0.12f, 1.4f, Col.Rgba(70, 200, 230));
+        Raylib.DrawSphere(new Vector3(0.55f, 0.18f, 0), 0.18f, Col.Rgba(40, 80, 120));
+        Raylib.DrawSphere(new Vector3(-0.7f, 0.05f, 0), 0.2f, Col.Rgba(80, 240, 255));
+        Rlgl.PopMatrix();
+        if (w.Player.Shield > 0)
+            Raylib.DrawSphereWires(p, 1.35f, 8, 8, Col.Rgba(80, 180, 255, 180));
+    }
+
+    static void DrawAlien3D(World w, Enemy e)
+    {
+        Vector3 p = w.ToWorld(e.Pos) + new Vector3(0, 0.8f, 0);
+        float bob = MathF.Sin(e.Age * 3f) * 0.15f;
+        p.Y += bob;
+        Color tint = e.Flash > 0 ? Color.White : DeathTint(e.Kind);
+        float spin = e.Age * 120f;
+        switch (e.Kind)
+        {
+            case EnemyKind.Prism:
+                Raylib.DrawCube(p, 1.1f, 1.6f, 1.1f, tint);
+                Raylib.DrawCubeWires(p, 1.25f, 1.8f, 1.25f, Col.Rgba(255, 160, 240));
+                break;
+            case EnemyKind.Hunter:
+                Raylib.DrawCube(p, 0.7f, 0.45f, 1.8f, tint);
+                Raylib.DrawCube(p + new Vector3(0.7f, 0, 0), 0.9f, 0.1f, 0.4f, Col.Rgba(255, 180, 80));
+                Raylib.DrawCube(p + new Vector3(-0.7f, 0, 0), 0.9f, 0.1f, 0.4f, Col.Rgba(255, 180, 80));
+                break;
+            case EnemyKind.Wraith:
+                Raylib.DrawSphere(p, 0.7f, Col.Fade(tint, 0.65f));
+                Raylib.DrawSphereWires(p, 0.85f, 7, 7, tint);
+                break;
+            case EnemyKind.Spire:
+                Raylib.DrawCylinder(p + new Vector3(0, -0.4f, 0), 0.25f, 0.7f, 2.4f, 8, tint);
+                Raylib.DrawSphere(p + new Vector3(0, 1.5f, 0), 0.38f, Col.Rgba(255, 230, 120));
+                break;
+            case EnemyKind.Hydra:
+                Raylib.DrawSphere(p + new Vector3(0, 1.2f, 0), 2.1f, tint);
+                Raylib.DrawSphere(p + new Vector3(0, 1.2f, 0), 0.7f, Col.Rgba(255, 80, 200));
+                for (int i = 0; i < 4; i++)
+                {
+                    float a = e.Age * 1.4f + i * MathF.Tau / 4f;
+                    var head = p + new Vector3(MathF.Cos(a) * 2.6f, 1.6f + MathF.Sin(e.Age * 3 + i) * 0.3f, MathF.Sin(a) * 2.6f);
+                    Raylib.DrawSphere(head, 0.7f, Col.Rgba(150, 40, 200));
+                    Raylib.DrawSphere(head, 0.28f, Col.Rgba(255, 120, 80));
+                }
+                break;
+            default:
+                Raylib.DrawCube(p, 1.2f, 1.2f, 1.2f, tint);
+                break;
+        }
+        _ = spin;
     }
 }

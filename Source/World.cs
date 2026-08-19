@@ -3,7 +3,7 @@ using Raylib_cs;
 
 namespace VoidHunter;
 
-enum EnemyKind { Scout, Strafer, Bruiser, Wasp, Spitter, Boss }
+enum EnemyKind { Scout, Strafer, Bruiser, Wasp, Spitter, Boss, Prism, Hunter, Wraith, Spire, Hydra }
 enum WeaponKind { Pulse, Spread, Rail, Nova }
 enum PickupKind { Health, Weapon, Shield, Overdrive }
 enum BulletOwner { Player, Enemy }
@@ -88,15 +88,20 @@ sealed class World
     public readonly List<Floater> Floaters = [];
 
     public const int FinalLevel = 10;
+    public const float WorldScale = 0.045f;
+    public int Chapter = 1;
     public int Score, Wave, Combo = 1, ComboKills;
     public int Kills, LevelKills, LevelScore, ClearBonus;
     public float ComboT, Shake, BannerT, WaveRest, GameOverDelay, Time, LevelTime;
     public string Banner = "";
     public string ResultGrade = "C";
-    public bool WantsGameOver, WantsLevelClear, WantsVictory, NewHigh;
+    public bool WantsGameOver, WantsLevelClear, WantsVictory, WantsWorldGate, NewHigh;
     public bool AutoPlay;
+    public bool IsAbyss => Chapter >= 2;
+    public string WorldName => IsAbyss ? "ABYSS" : "RIFT";
     public Rectangle Playfield;
     public Vector2 ShakeOff;
+    public Camera3D Cam;
 
     readonly AudioBus _audio;
     readonly List<(EnemyKind Kind, float Delay)> _queue = [];
@@ -114,8 +119,9 @@ sealed class World
         Kills = 0; LevelKills = 0; LevelScore = 0; ClearBonus = 0;
         ComboT = 0; Shake = 0; BannerT = 0; WaveRest = 0.6f;
         GameOverDelay = 0; Time = 0; LevelTime = 0;
-        WantsGameOver = false; WantsLevelClear = false; WantsVictory = false; NewHigh = false;
+        WantsGameOver = false; WantsLevelClear = false; WantsVictory = false; WantsWorldGate = false; NewHigh = false;
         ResultGrade = "C";
+        Chapter = 1;
         _spawnWait = 0; _bossIndex = 0;
         Player.Pos = new Vector2(Playfield.X + Playfield.Width * 0.5f, Playfield.Y + Playfield.Height * 0.72f);
         Player.Vel = Vector2.Zero;
@@ -193,7 +199,8 @@ sealed class World
         if (Player.DashT > 0) Player.DashT = MathF.Max(0, Player.DashT - dt);
 
         Vector2 wish = Vector2.Zero;
-        Vector2 aim = Raylib.GetMousePosition() - Player.Pos;
+        if (IsAbyss) RefreshCamera();
+        Vector2 aim = (IsAbyss ? AimPoint3D() : Raylib.GetMousePosition()) - Player.Pos;
         bool fire = Raylib.IsMouseButtonDown(MouseButton.Left) || Raylib.IsKeyDown(KeyboardKey.Space);
         bool dash = Raylib.IsMouseButtonPressed(MouseButton.Right)
                     || Raylib.IsKeyPressed(KeyboardKey.LeftShift)
@@ -320,7 +327,7 @@ sealed class World
 
     void TryResolveLevel()
     {
-        if (!Player.Alive || WantsLevelClear || WantsVictory || WantsGameOver)
+        if (!Player.Alive || WantsLevelClear || WantsVictory || WantsGameOver || WantsWorldGate)
             return;
         if (Wave <= 0 || WaveRest > 0)
             return;
@@ -329,13 +336,25 @@ sealed class World
 
         if (AutoPlay)
         {
-            if (Wave >= FinalLevel) FinishRun(won: true);
+            if (Wave >= FinalLevel)
+            {
+                if (Chapter == 1) EnterAbyss();
+                else FinishRun(won: true);
+            }
             else ContinueNextLevel();
             return;
         }
 
         SealLevel();
-        if (Wave >= FinalLevel) FinishRun(won: true);
+        if (Wave >= FinalLevel)
+        {
+            if (Chapter == 1)
+            {
+                WantsLevelClear = true;
+                WantsWorldGate = true;
+            }
+            else FinishRun(won: true);
+        }
         else WantsLevelClear = true;
     }
 
@@ -374,6 +393,38 @@ sealed class World
         _queue.Clear();
         _audio.Wave();
         bool boss = wave % 5 == 0;
+        void Add(EnemyKind k, int n, float gap)
+        {
+            for (int i = 0; i < n; i++) _queue.Add((k, gap));
+        }
+
+        if (IsAbyss)
+        {
+            if (boss)
+            {
+                _bossIndex++;
+                _queue.Add((EnemyKind.Hydra, 0.1f));
+                int escorts = 5 + _bossIndex;
+                for (int i = 0; i < escorts; i++)
+                    _queue.Add((Rng.Chance(0.5f) ? EnemyKind.Wraith : EnemyKind.Prism, 0.16f));
+                Banner = _bossIndex <= 2 ? "HYDRA" : $"HYDRA {_bossIndex}";
+                BannerT = 2.4f;
+                _audio.Boss();
+                return;
+            }
+            if (wave == 1) Add(EnemyKind.Prism, 8, 0.26f);
+            else if (wave == 2) { Add(EnemyKind.Prism, 6, 0.2f); Add(EnemyKind.Hunter, 3, 0.4f); }
+            else if (wave == 3) { Add(EnemyKind.Wraith, 10, 0.12f); Add(EnemyKind.Spire, 2, 0.55f); }
+            else
+            {
+                Add(EnemyKind.Prism, 5 + wave, 0.15f);
+                Add(EnemyKind.Hunter, 2 + wave / 3, 0.28f);
+                Add(EnemyKind.Wraith, 4 + wave / 2, 0.1f);
+                Add(EnemyKind.Spire, Math.Max(1, wave / 3), 0.5f);
+            }
+            return;
+        }
+
         if (boss)
         {
             _bossIndex++;
@@ -385,11 +436,6 @@ sealed class World
             BannerT = 2.4f;
             _audio.Boss();
             return;
-        }
-
-        void Add(EnemyKind k, int n, float gap)
-        {
-            for (int i = 0; i < n; i++) _queue.Add((k, gap));
         }
 
         if (wave == 1) Add(EnemyKind.Scout, 8, 0.28f);
@@ -418,7 +464,8 @@ sealed class World
         _queue.Clear();
         WantsLevelClear = false;
         WantsVictory = false;
-        Banner = wave % 5 == 0 ? "RIFT SIGNATURE" : $"LEVEL {wave}";
+        WantsWorldGate = false;
+        Banner = wave % 5 == 0 ? (IsAbyss ? "HYDRA SIGNATURE" : "RIFT SIGNATURE") : $"LEVEL {wave}";
         BannerT = 1.6f;
     }
 
@@ -452,10 +499,11 @@ sealed class World
     {
         WantsLevelClear = false;
         WantsVictory = false;
+        WantsWorldGate = false;
         Player.Hp = MathF.Min(Player.MaxHp, Player.Hp + 18f);
         Player.IFrames = 0.8f;
         WaveRest = 0.35f;
-        Banner = (Wave + 1) % 5 == 0 ? "RIFT SIGNATURE" : $"LEVEL {Wave + 1}";
+        Banner = (Wave + 1) % 5 == 0 ? (IsAbyss ? "HYDRA SIGNATURE" : "RIFT SIGNATURE") : $"LEVEL {Wave + 1}";
         BannerT = 1.8f;
         _audio.Wave();
     }
@@ -465,6 +513,7 @@ sealed class World
         WantsGameOver = false;
         WantsLevelClear = false;
         WantsVictory = false;
+        WantsWorldGate = false;
         GameOverDelay = 0;
         Enemies.Clear();
         Bullets.Clear();
@@ -483,7 +532,7 @@ sealed class World
         int retry = Math.Max(1, Wave);
         Wave = retry - 1;
         WaveRest = 0.25f;
-        Banner = retry % 5 == 0 ? "RIFT SIGNATURE" : $"LEVEL {retry}";
+        Banner = retry % 5 == 0 ? (IsAbyss ? "HYDRA SIGNATURE" : "RIFT SIGNATURE") : $"LEVEL {retry}";
         BannerT = 1.6f;
     }
 
@@ -526,12 +575,93 @@ sealed class World
             LevelScore = 540; LevelTime = 38; Player.Hp = 0; Player.Alive = false;
             ClearBonus = 0; ResultGrade = "D"; WantsGameOver = true;
         }
+        else if (kind == "gate")
+        {
+            Wave = FinalLevel; Chapter = 1; Score = 12400; Kills = 98; LevelKills = 16;
+            LevelScore = 2800; LevelTime = 68; Player.Hp = 88; Player.Alive = true;
+            ClearBonus = 900; ResultGrade = "S"; WantsLevelClear = true; WantsWorldGate = true;
+        }
+        else if (kind == "abyss")
+        {
+            EnterAbyss();
+            WaveRest = 0.2f;
+        }
         else
         {
             Wave = 3; Score = 3120; Kills = 28; LevelKills = 9;
             LevelScore = 880; LevelTime = 41; Player.Hp = 84; Player.Alive = true;
             ClearBonus = 350; ResultGrade = "A"; WantsLevelClear = true;
         }
+    }
+
+    public void EnterAbyss()
+    {
+        Chapter = 2;
+        WantsLevelClear = false;
+        WantsWorldGate = false;
+        WantsVictory = false;
+        WantsGameOver = false;
+        Enemies.Clear();
+        Bullets.Clear();
+        Pickups.Clear();
+        Particles.Clear();
+        Rings.Clear();
+        Floaters.Clear();
+        _queue.Clear();
+        _spawnWait = 0;
+        _bossIndex = 0;
+        Wave = 0;
+        WaveRest = 0.85f;
+        LevelKills = 0;
+        LevelScore = 0;
+        LevelTime = 0;
+        Player.Hp = Player.MaxHp;
+        Player.Shield = MathF.Min(Player.MaxShield, Player.Shield + 20f);
+        Player.IFrames = 1.4f;
+        Player.Alive = true;
+        Player.HurtFlash = 0;
+        Player.Pos = new Vector2(Playfield.X + Playfield.Width * 0.5f, Playfield.Y + Playfield.Height * 0.7f);
+        Player.Vel = Vector2.Zero;
+        Banner = "THE ABYSS";
+        BannerT = 2.2f;
+        RefreshCamera();
+        _audio.Boss();
+    }
+
+    public Vector3 ToWorld(Vector2 p)
+    {
+        float cx = Playfield.X + Playfield.Width * 0.5f;
+        float cy = Playfield.Y + Playfield.Height * 0.5f;
+        return new Vector3((p.X - cx) * WorldScale, 0f, (p.Y - cy) * WorldScale);
+    }
+
+    public Vector2 FromWorld(Vector3 w)
+    {
+        float cx = Playfield.X + Playfield.Width * 0.5f;
+        float cy = Playfield.Y + Playfield.Height * 0.5f;
+        return new Vector2(w.X / WorldScale + cx, w.Z / WorldScale + cy);
+    }
+
+    public void RefreshCamera()
+    {
+        Vector3 p = ToWorld(Player.Pos);
+        Vector3 shake = new(ShakeOff.X * 0.02f, 0f, ShakeOff.Y * 0.02f);
+        Cam.Target = p + new Vector3(0f, 1.3f, 0f) + shake;
+        Cam.Position = p + new Vector3(0f, 30f, 26f) + shake;
+        Cam.Up = Vector3.UnitY;
+        Cam.FovY = 48f;
+        Cam.Projection = CameraProjection.Perspective;
+    }
+
+    Vector2 AimPoint3D()
+    {
+        Ray ray = Raylib.GetScreenToWorldRay(Raylib.GetMousePosition(), Cam);
+        if (MathF.Abs(ray.Direction.Y) < 0.0008f)
+            return Player.Pos + V.FromAngle(Player.Angle) * 80f;
+        float t = -ray.Position.Y / ray.Direction.Y;
+        if (t <= 0f)
+            return Player.Pos + V.FromAngle(Player.Angle) * 80f;
+        return FromWorld(ray.Position + ray.Direction * t);
     }
 
     Vector2 EdgePoint()
@@ -563,6 +693,22 @@ sealed class World
                 e.Radius = 13; e.MaxHp = 10 * scale; e.Contact = 7; e.Score = 30; break;
             case EnemyKind.Spitter:
                 e.Radius = 23; e.MaxHp = 55 * scale; e.Contact = 12; e.Score = 130; e.FireCd = Rng.Float(0.5f, 1.2f); break;
+            case EnemyKind.Prism:
+                e.Radius = 20; e.MaxHp = 34 * scale; e.Contact = 12; e.Score = 80; e.FireCd = Rng.Float(0.5f, 1.2f); break;
+            case EnemyKind.Hunter:
+                e.Radius = 20; e.MaxHp = 70 * scale; e.Contact = 18; e.Score = 140; e.ChargeCd = Rng.Float(0.8f, 1.8f); break;
+            case EnemyKind.Wraith:
+                e.Radius = 16; e.MaxHp = 18 * scale; e.Contact = 9; e.Score = 70; e.FireCd = Rng.Float(0.8f, 1.6f); break;
+            case EnemyKind.Spire:
+                e.Radius = 22; e.MaxHp = 90 * scale; e.Contact = 14; e.Score = 160; e.FireCd = Rng.Float(0.6f, 1.3f); break;
+            case EnemyKind.Hydra:
+                e.Radius = 68; e.MaxHp = 1100 + _bossIndex * 380; e.Contact = 30; e.Score = 3200 + _bossIndex * 900;
+                e.SpawnIn = 1.1f; e.FireCd = 0.7f; e.Phase = 1;
+                pos = new Vector2(Playfield.X + Playfield.Width * 0.5f, Playfield.Y + 120);
+                e.Pos = pos;
+                Ring(pos, 22, 460, Col.Rgba(180, 60, 255), 0.7f);
+                Shake = 9;
+                break;
             default:
                 e.Radius = 62; e.MaxHp = 850 + _bossIndex * 320; e.Contact = 28; e.Score = 2500 + _bossIndex * 800;
                 e.SpawnIn = 1.1f; e.FireCd = 0.8f; e.Phase = 1;
@@ -660,6 +806,70 @@ sealed class World
                     }
                     break;
                 }
+                case EnemyKind.Prism:
+                {
+                    Vector2 tan = V.Perp(dir) * 160f * (MathF.Sin(e.Age * 1.1f) >= 0 ? 1f : -1f);
+                    e.Vel = Vector2.Lerp(e.Vel, dir * 70f + tan, 0.1f);
+                    e.FireCd -= dt;
+                    if (e.FireCd <= 0 && Player.Alive)
+                    {
+                        e.FireCd = 1.05f;
+                        for (int s = -1; s <= 1; s++)
+                        {
+                            Vector2 d = V.FromAngle(e.Angle + s * 0.28f);
+                            SpawnBullet(BulletOwner.Enemy, e.Pos + d * e.Radius, d * 360f, 5f, 9f, 2.2f, 0, 0,
+                                Col.Rgba(255, 90, 220), WeaponKind.Spread);
+                        }
+                    }
+                    break;
+                }
+                case EnemyKind.Hunter:
+                    e.ChargeCd -= dt;
+                    if (e.ChargeT > 0)
+                    {
+                        e.ChargeT -= dt;
+                        e.Vel = dir * 460f;
+                    }
+                    else
+                    {
+                        e.Vel = Vector2.Lerp(e.Vel, dir * 150f, 0.12f);
+                        if (e.ChargeCd <= 0)
+                        {
+                            e.ChargeT = 0.38f;
+                            e.ChargeCd = 1.9f;
+                            Ring(e.Pos, 8, 80, Col.Rgba(255, 140, 40), 0.18f);
+                        }
+                    }
+                    break;
+                case EnemyKind.Wraith:
+                    e.Vel = Vector2.Lerp(e.Vel, dir * 210f + V.Perp(dir) * MathF.Sin(e.Age * 6f) * 80f, 0.16f);
+                    e.FireCd -= dt;
+                    if (e.FireCd <= 0 && Player.Alive)
+                    {
+                        e.FireCd = 1.8f;
+                        e.Pos = p + V.FromAngle(Rng.Float(0, MathF.Tau)) * Rng.Float(160, 260);
+                        e.Pos = V.ClampTo(e.Pos, Playfield, e.Radius);
+                        e.SpawnIn = 0.18f;
+                        Vector2 shot = V.Norm(p - e.Pos);
+                        SpawnBullet(BulletOwner.Enemy, e.Pos + shot * e.Radius, shot * 380f, 5f, 10f, 2.2f, 0, 0,
+                            Col.Rgba(160, 90, 255), WeaponKind.Pulse);
+                    }
+                    break;
+                case EnemyKind.Spire:
+                {
+                    float desired = 340f;
+                    Vector2 radial = dir * (dist > desired + 50 ? 90f : dist < desired - 40 ? -130f : 0);
+                    e.Vel = Vector2.Lerp(e.Vel, radial, 0.08f);
+                    e.FireCd -= dt;
+                    if (e.FireCd <= 0 && Player.Alive)
+                    {
+                        e.FireCd = 0.85f;
+                        Vector2 lead = V.Norm(p + Player.Vel * 0.25f - e.Pos);
+                        SpawnBullet(BulletOwner.Enemy, e.Pos + lead * e.Radius, lead * 430f, 7f, 14f, 2.8f, 0, 0,
+                            Col.Rgba(255, 200, 80), WeaponKind.Rail);
+                    }
+                    break;
+                }
                 default:
                     UpdateBoss(e, dt, dir, dist);
                     break;
@@ -667,10 +877,10 @@ sealed class World
 
             e.Pos += e.Vel * dt;
             // soft keep inside with slack so they can enter from edges
-            if (e.Kind != EnemyKind.Boss)
-                e.Pos = V.ClampTo(e.Pos, Expand(Playfield, 8), e.Radius);
-            else
+            if (e.Kind is EnemyKind.Boss or EnemyKind.Hydra)
                 e.Pos = V.ClampTo(e.Pos, Playfield, e.Radius);
+            else
+                e.Pos = V.ClampTo(e.Pos, Expand(Playfield, 8), e.Radius);
         }
     }
 
@@ -707,8 +917,9 @@ sealed class World
             for (int a = 0; a < arms; a++)
             {
                 Vector2 d = V.FromAngle(e.Spiral + a * (MathF.Tau / arms));
+                Color shot = e.Kind == EnemyKind.Hydra ? Col.Rgba(190, 70, 255) : Col.Rgba(255, 110, 50);
                 SpawnBullet(BulletOwner.Enemy, e.Pos + d * e.Radius * 0.6f, d * 280f, 6f, 11f, 3.2f, 0, 0,
-                    Col.Rgba(255, 110, 50), WeaponKind.Pulse);
+                    shot, WeaponKind.Pulse);
             }
         }
 
@@ -874,7 +1085,7 @@ sealed class World
     void KillEnemy(Enemy e)
     {
         e.Alive = false;
-        bool boss = e.Kind == EnemyKind.Boss;
+        bool boss = e.Kind is EnemyKind.Boss or EnemyKind.Hydra;
         ComboKills++;
         Combo = Math.Min(8, 1 + ComboKills / 3);
         ComboT = 2.3f;
@@ -896,6 +1107,10 @@ sealed class World
             EnemyKind.Bruiser => 0.2f,
             EnemyKind.Wasp => 0.04f,
             EnemyKind.Spitter => 0.14f,
+            EnemyKind.Prism => 0.1f,
+            EnemyKind.Hunter => 0.16f,
+            EnemyKind.Wraith => 0.08f,
+            EnemyKind.Spire => 0.18f,
             _ => 1f,
         };
         if (boss)
@@ -919,6 +1134,10 @@ sealed class World
         EnemyKind.Bruiser => Col.Rgba(255, 90, 50),
         EnemyKind.Wasp => Col.Rgba(255, 200, 60),
         EnemyKind.Spitter => Col.Rgba(70, 230, 180),
+        EnemyKind.Prism => Col.Rgba(255, 80, 210),
+        EnemyKind.Hunter => Col.Rgba(255, 150, 50),
+        EnemyKind.Wraith => Col.Rgba(160, 90, 255),
+        EnemyKind.Spire => Col.Rgba(255, 210, 80),
         _ => Col.Rgba(255, 80, 40),
     };
 
@@ -1048,7 +1267,7 @@ sealed class World
     public Enemy? ActiveBoss()
     {
         foreach (Enemy e in Enemies)
-            if (e.Alive && e.Kind == EnemyKind.Boss) return e;
+            if (e.Alive && e.Kind is EnemyKind.Boss or EnemyKind.Hydra) return e;
         return null;
     }
 }
