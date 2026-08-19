@@ -213,7 +213,7 @@ static class Renderer
         if (w.Player.Overdrive > 0) wpn += $"  OD {w.Player.Overdrive:0.0}";
         DrawTextCentered(c.Font, wpn, new Vector2(sw * 0.5f, Raylib.GetScreenHeight() - 38), 18, Col.Rgba(140, 230, 255));
         if (w.IsAbyss)
-            DrawTextCentered(c.Font, "WASD MOVE   MOUSE AIM   Q/E HEIGHT   LMB FIRE   SHIFT DASH",
+            DrawTextCentered(c.Font, "WASD FLY ANYWHERE   MOUSE AIM   Q/E HEIGHT   LMB FIRE   SHIFT DASH",
                 new Vector2(sw * 0.5f, Raylib.GetScreenHeight() - 16), 12, Col.Rgba(180, 160, 220, 200));
 
         // weapon slots
@@ -377,6 +377,7 @@ static class Renderer
         Raylib.DrawRectangleGradientV(0, sh / 2, sw, sh / 2, Col.Rgba(0, 0, 0, 0), Col.Rgba(0, 0, 0, 90));
 
         Raylib.BeginMode3D(w.Cam);
+        DrawOpenSpace(w);
         DrawAbyssTerrain(w, c);
 
         foreach (Pickup p in w.Pickups)
@@ -458,6 +459,44 @@ static class Renderer
         DrawCrosshair(Raylib.GetMousePosition());
     }
 
+    static void DrawOpenSpace(World w)
+    {
+        Vector3 cam = w.Cam.Position;
+        const float cell = 95f;
+        int cx = (int)MathF.Floor(cam.X / cell);
+        int cy = (int)MathF.Floor(cam.Y / cell);
+        int cz = (int)MathF.Floor(cam.Z / cell);
+        for (int ix = -2; ix <= 2; ix++)
+        for (int iy = -2; iy <= 2; iy++)
+        for (int iz = -2; iz <= 2; iz++)
+        {
+            int hx = cx + ix, hy = cy + iy, hz = cz + iz;
+            int seed = hx * 73856093 ^ hy * 19349663 ^ hz * 83492791;
+            var rng = new Random(seed);
+            int n = 5 + (seed & 3);
+            for (int k = 0; k < n; k++)
+            {
+                var p = new Vector3(
+                    hx * cell + rng.NextSingle() * cell,
+                    hy * cell + rng.NextSingle() * cell,
+                    hz * cell + rng.NextSingle() * cell);
+                if (Vector3.DistanceSquared(p, cam) < 80f) continue;
+                float s = 0.07f + rng.NextSingle() * 0.14f;
+                Raylib.DrawSphere(p, s, Col.Rgba(255, 232, 210, 210));
+            }
+            if ((seed & 7) == 0)
+            {
+                var rock = new Vector3(
+                    hx * cell + rng.NextSingle() * cell,
+                    hy * cell + rng.NextSingle() * cell,
+                    hz * cell + rng.NextSingle() * cell);
+                if (Vector3.DistanceSquared(rock, cam) < 400f) continue;
+                float rs = 0.7f + rng.NextSingle() * 1.6f;
+                Raylib.DrawCube(rock, rs, rs * 0.6f, rs * 0.8f, Col.Rgba(70, 52, 48));
+            }
+        }
+    }
+
     static void DrawAbyssTerrain(World w, ContentPack c)
     {
         if (c.OwnsGround && c.GroundModel.MeshCount > 0)
@@ -497,7 +536,8 @@ static class Renderer
     static void DrawShip3D(World w, ContentPack c)
     {
         Vector3 feet = w.ToWorld(w.Player.Pos, w.Player.Alt);
-        Raylib.DrawCircle3D(new Vector3(feet.X, 0.04f, feet.Z), 1.2f, Vector3.UnitX, 90, Col.Rgba(0, 0, 0, 90));
+        if (MathF.Abs(feet.X) < 52f && MathF.Abs(feet.Z) < 42f)
+            Raylib.DrawCircle3D(new Vector3(feet.X, 0.04f, feet.Z), 1.2f, Vector3.UnitX, 90, Col.Rgba(0, 0, 0, 90));
         Vector3 p = feet;
         Rlgl.PushMatrix();
         Rlgl.Translatef(p.X, p.Y, p.Z);

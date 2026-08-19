@@ -261,15 +261,16 @@ sealed class World
         Player.Vel = wish * speed;
         Player.Vel3 = Vector3.Zero;
         Player.Pos += Player.Vel * dt;
-        Player.Pos = V.ClampTo(Player.Pos, Playfield, Player.Radius);
+        if (!IsAbyss)
+            Player.Pos = V.ClampTo(Player.Pos, Playfield, Player.Radius);
 
         if (IsAbyss)
         {
             float climb = 0f;
-            if (Raylib.IsKeyDown(KeyboardKey.E)) climb += 18f;
-            if (Raylib.IsKeyDown(KeyboardKey.Q) || Raylib.IsKeyDown(KeyboardKey.LeftControl)) climb -= 18f;
+            if (Raylib.IsKeyDown(KeyboardKey.E)) climb += 28f;
+            if (Raylib.IsKeyDown(KeyboardKey.Q) || Raylib.IsKeyDown(KeyboardKey.LeftControl)) climb -= 28f;
             Player.Alt += climb * dt;
-            Player.Alt = Math.Clamp(Player.Alt, 1.2f, 22f);
+            Player.Alt = Math.Clamp(Player.Alt, 0.4f, 90f);
             RefreshCamera();
             Player.Aim3 = AimDir3D();
             Vector2 flat = new(Player.Aim3.X, Player.Aim3.Z);
@@ -718,6 +719,11 @@ sealed class World
 
     Vector2 EdgePoint()
     {
+        if (IsAbyss)
+        {
+            float ang = Rng.Float(0, MathF.Tau);
+            return Player.Pos + V.FromAngle(ang) * Rng.Float(420f, 720f);
+        }
         int side = Rng.Int(0, 4);
         float m = 36f;
         return side switch
@@ -900,7 +906,7 @@ sealed class World
                     {
                         e.FireCd = 1.8f;
                         e.Pos = p + V.FromAngle(Rng.Float(0, MathF.Tau)) * Rng.Float(160, 260);
-                        e.Pos = V.ClampTo(e.Pos, Playfield, e.Radius);
+                        if (!IsAbyss) e.Pos = V.ClampTo(e.Pos, Playfield, e.Radius);
                         e.SpawnIn = 0.18f;
                         Vector2 shot = V.Norm(p - e.Pos);
                         SpawnBullet(BulletOwner.Enemy, e.Pos + shot * e.Radius, shot * 380f, 5f, 10f, 2.2f, 0, 0,
@@ -928,11 +934,13 @@ sealed class World
             }
 
             e.Pos += e.Vel * dt;
-            // soft keep inside with slack so they can enter from edges
-            if (e.Kind is EnemyKind.Boss or EnemyKind.Hydra)
-                e.Pos = V.ClampTo(e.Pos, Playfield, e.Radius);
-            else
-                e.Pos = V.ClampTo(e.Pos, Expand(Playfield, 8), e.Radius);
+            if (!IsAbyss)
+            {
+                if (e.Kind is EnemyKind.Boss or EnemyKind.Hydra)
+                    e.Pos = V.ClampTo(e.Pos, Playfield, e.Radius);
+                else
+                    e.Pos = V.ClampTo(e.Pos, Expand(Playfield, 8), e.Radius);
+            }
         }
     }
 
@@ -945,7 +953,9 @@ sealed class World
 
         e.ChargeCd -= dt;
         e.FireCd -= dt;
-        Vector2 hold = new(Playfield.X + Playfield.Width * 0.5f, Playfield.Y + 160);
+        Vector2 hold = IsAbyss
+            ? Player.Pos
+            : new Vector2(Playfield.X + Playfield.Width * 0.5f, Playfield.Y + 160);
         Vector2 drift = V.FromAngle(e.Age * 0.6f) * 70f;
         e.Vel = Vector2.Lerp(e.Vel, (hold + drift - e.Pos) * 1.4f + dir * 20f, 0.04f);
 
@@ -996,8 +1006,10 @@ sealed class World
             b.Life -= dt;
             b.Pos += b.Vel * dt;
             b.Alt += b.VelAlt * dt;
-            if (b.Life <= 0 || !Raylib.CheckCollisionCircleRec(b.Pos, b.Radius, Expand(Playfield, IsAbyss ? 400 : 80))
-                || (IsAbyss && (b.Alt < -4f || b.Alt > 40f)))
+            bool outOfPlay = IsAbyss
+                ? Vector2.DistanceSquared(b.Pos, Player.Pos) > 2200f * 2200f || b.Alt < -30f || b.Alt > 140f
+                : !Raylib.CheckCollisionCircleRec(b.Pos, b.Radius, Expand(Playfield, 80));
+            if (b.Life <= 0 || outOfPlay)
             {
                 b.Alive = false;
                 continue;
@@ -1282,7 +1294,7 @@ sealed class World
 
     void SpawnPickup(PickupKind kind, Vector2 pos)
     {
-        pos = V.ClampTo(pos, Playfield, 20);
+        if (!IsAbyss) pos = V.ClampTo(pos, Playfield, 20);
         Pickups.Add(new Pickup { Alive = true, Kind = kind, Pos = pos });
     }
 
