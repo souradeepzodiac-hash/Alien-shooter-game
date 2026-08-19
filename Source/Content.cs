@@ -7,6 +7,9 @@ sealed class ContentPack : IDisposable
     public Texture2D Player, Scout, Strafer, Bruiser, Wasp, Spitter, Boss;
     public Texture2D Health, Weapon, Shield, Overdrive;
     public Texture2D Nebula, Menu, Glow;
+    public Texture2D AbyssSky, AbyssGround, Prism, Hunter, Wraith, Spire, Hydra;
+    public Model GroundModel;
+    public bool OwnsGround;
     public Font Font;
     public bool OwnsFont;
 
@@ -25,6 +28,23 @@ sealed class ContentPack : IDisposable
         Overdrive = LoadSprite("overdrive.png");
         Nebula = LoadSprite("nebula.png");
         Menu = LoadSprite("menu.png");
+        AbyssSky = LoadSprite("abyss_sky.png");
+        AbyssGround = LoadSprite("abyss_ground.png");
+        Prism = LoadSprite("prism.png");
+        Hunter = LoadSprite("hunter.png");
+        Wraith = LoadSprite("wraith.png");
+        Spire = LoadSprite("spire.png");
+        Hydra = LoadSprite("hydra.png");
+        if (AbyssGround.Id != 0)
+        {
+            Mesh mesh = Raylib.GenMeshPlane(96, 74, 1, 1);
+            GroundModel = Raylib.LoadModelFromMesh(mesh);
+            unsafe
+            {
+                Raylib.SetMaterialTexture(&GroundModel.Materials[0], MaterialMapIndex.Albedo, AbyssGround);
+            }
+            OwnsGround = GroundModel.MeshCount > 0;
+        }
 
         Image glow = Raylib.GenImageGradientRadial(64, 64, 0.12f, Color.White, Col.Rgba(255, 255, 255, 0));
         Glow = Raylib.LoadTextureFromImage(glow);
@@ -75,6 +95,11 @@ sealed class ContentPack : IDisposable
         EnemyKind.Bruiser => Bruiser,
         EnemyKind.Wasp => Wasp,
         EnemyKind.Spitter => Spitter,
+        EnemyKind.Prism => Prism.Id != 0 ? Prism : Boss,
+        EnemyKind.Hunter => Hunter.Id != 0 ? Hunter : Boss,
+        EnemyKind.Wraith => Wraith.Id != 0 ? Wraith : Boss,
+        EnemyKind.Spire => Spire.Id != 0 ? Spire : Boss,
+        EnemyKind.Hydra => Hydra.Id != 0 ? Hydra : Boss,
         _ => Boss,
     };
 
@@ -92,6 +117,9 @@ sealed class ContentPack : IDisposable
         Unload(Wasp); Unload(Spitter); Unload(Boss);
         Unload(Health); Unload(Weapon); Unload(Shield); Unload(Overdrive);
         Unload(Nebula); Unload(Menu); Unload(Glow);
+        Unload(AbyssSky); Unload(AbyssGround);
+        Unload(Prism); Unload(Hunter); Unload(Wraith); Unload(Spire); Unload(Hydra);
+        if (OwnsGround) Raylib.UnloadModel(GroundModel);
         if (OwnsFont) Raylib.UnloadFont(Font);
     }
 
