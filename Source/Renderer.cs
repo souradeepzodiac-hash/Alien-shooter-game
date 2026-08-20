@@ -197,24 +197,29 @@ static class Renderer
     {
         int sw = Raylib.GetScreenWidth();
         float hp = w.Player.MaxHp <= 0 ? 0 : w.Player.Hp / w.Player.MaxHp;
-        DrawBar(28, 22, 260, 16, hp, Col.Rgba(40, 16, 18, 180), Col.Rgba(230, 55, 70), "HULL");
+        DrawBar(28, 22, 260, 16, hp, Col.Rgba(40, 16, 18, 180), Col.Rgba(230, 55, 70), w.IsAbyss ? "HEALTH" : "HULL");
         float shv = w.Player.MaxShield <= 0 ? 0 : w.Player.Shield / w.Player.MaxShield;
         DrawBar(28, 44, 260, 10, shv, Col.Rgba(12, 24, 36, 180), Col.Rgba(70, 190, 255), "SHIELD");
 
         DrawText(c.Font, $"SCORE  {w.Score:N0}", new Vector2(sw - 28, 20), 22, Color.White, true);
         DrawText(c.Font, $"BEST  {SaveData.HighScore:N0}", new Vector2(sw - 28, 46), 16, Col.Rgba(180, 200, 220), true);
+        if (w.IsAbyss)
+            DrawText(c.Font, $"STARS  {w.Stars}", new Vector2(sw - 28, 70), 20, Col.Rgba(255, 220, 90), true);
         if (w.Combo > 1)
-            DrawText(c.Font, $"COMBO  x{w.Combo}", new Vector2(sw - 28, 70), 18, Col.Rgba(255, 210, 90), true);
+            DrawText(c.Font, w.IsAbyss ? $"COMBO  x{w.Combo}  {ComboCheer(w.Combo)}" : $"COMBO  x{w.Combo}",
+                new Vector2(sw - 28, w.IsAbyss ? 96 : 70), 18, Col.Rgba(255, 210, 90), true);
 
-        DrawTextCentered(c.Font, w.WorldName, new Vector2(sw * 0.5f, 14), 14, w.IsAbyss ? Col.Rgba(220, 140, 255) : Col.Rgba(140, 210, 240));
+        DrawTextCentered(c.Font, w.WorldName, new Vector2(sw * 0.5f, 14), 14, w.IsAbyss ? Col.Rgba(255, 170, 230) : Col.Rgba(140, 210, 240));
         DrawTextCentered(c.Font, $"LEVEL {Math.Max(1, w.Wave)} / {World.FinalLevel}", new Vector2(sw * 0.5f, 34), 22, Col.Rgba(180, 230, 255));
 
-        string wpn = $"{World.WeaponName(w.Player.Weapon)}  L{Math.Max(1, w.Player.Levels[(int)w.Player.Weapon])}";
-        if (w.Player.Overdrive > 0) wpn += $"  OD {w.Player.Overdrive:0.0}";
+        string wpn = w.IsAbyss
+            ? $"{World.KidWeaponName(w.Player.Weapon)}  L{Math.Max(1, w.Player.Levels[(int)w.Player.Weapon])}"
+            : $"{World.WeaponName(w.Player.Weapon)}  L{Math.Max(1, w.Player.Levels[(int)w.Player.Weapon])}";
+        if (w.Player.Overdrive > 0) wpn += w.IsAbyss ? $"  STAR POWER {w.Player.Overdrive:0.0}" : $"  OD {w.Player.Overdrive:0.0}";
         DrawTextCentered(c.Font, wpn, new Vector2(sw * 0.5f, Raylib.GetScreenHeight() - 38), 18, Col.Rgba(140, 230, 255));
         if (w.IsAbyss)
-            DrawTextCentered(c.Font, "MOUSE AIMS THE PLANE   ARROWS/WASD MOVE   Q/E HEIGHT   LMB FIRE",
-                new Vector2(sw * 0.5f, Raylib.GetScreenHeight() - 16), 12, Col.Rgba(180, 160, 220, 200));
+            DrawTextCentered(c.Font, "MOUSE TURNS YOU   ARROWS FLY   Q/E UP-DOWN   CLICK TO BLAST",
+                new Vector2(sw * 0.5f, Raylib.GetScreenHeight() - 16), 12, Col.Rgba(255, 190, 230, 220));
 
         // weapon slots
         float sx = sw * 0.5f - 86;
@@ -236,7 +241,7 @@ static class Renderer
         if (boss is not null)
         {
             float t = boss.MaxHp <= 0 ? 0 : boss.Hp / boss.MaxHp;
-            string name = boss.Kind == EnemyKind.Hydra ? "HYDRA" : "LEVIATHAN";
+            string name = boss.Kind == EnemyKind.Hydra ? "SPACE BOSS" : "LEVIATHAN";
             DrawBar(sw * 0.5f - 220, 58, 440, 14, t, Col.Rgba(30, 10, 10, 200),
                 boss.Kind == EnemyKind.Hydra ? Col.Rgba(190, 70, 255) : Col.Rgba(255, 70, 50), name);
         }
@@ -244,21 +249,33 @@ static class Renderer
         if (w.BannerT > 0 && w.Banner.Length > 0)
         {
             float a = Math.Clamp(w.BannerT, 0f, 1f);
-            DrawTextCentered(c.Font, w.Banner, new Vector2(sw * 0.5f, 110), 42, Col.Fade(Color.White, a));
+            Color bc = w.IsAbyss ? World.Rainbow(w.Time * 0.6f) : Color.White;
+            DrawTextCentered(c.Font, w.Banner, new Vector2(sw * 0.5f, 110), 42, Col.Fade(bc, a));
+        }
+        if (w.IsAbyss && w.HintT > 0 && w.Hint.Length > 0)
+        {
+            float a = Math.Clamp(w.HintT / 2f, 0f, 1f);
+            DrawTextCentered(c.Font, w.Hint, new Vector2(sw * 0.5f, 158), 20, Col.Fade(Col.Rgba(255, 240, 160), a));
         }
 
-        DrawCrosshair(Raylib.GetMousePosition());
+        DrawCrosshair(Raylib.GetMousePosition(), w.IsAbyss);
     }
 
-    static void DrawCrosshair(Vector2 m)
+    static string ComboCheer(int combo) => combo >= 8 ? "STAR POWER!" : combo >= 6 ? "MEGA!" : combo >= 4 ? "SUPER!" : "NICE!";
+
+    static void DrawCrosshair(Vector2 m, bool playful = false)
     {
-        Color c = Col.Rgba(140, 240, 255, 210);
-        Raylib.DrawCircleLinesV(m, 12, c);
+        Color c = playful ? Col.Rgba(255, 220, 80, 230) : Col.Rgba(140, 240, 255, 210);
+        Raylib.DrawCircleLinesV(m, playful ? 16 : 12, c);
         Raylib.DrawLineV(m + new Vector2(-18, 0), m + new Vector2(-6, 0), c);
         Raylib.DrawLineV(m + new Vector2(6, 0), m + new Vector2(18, 0), c);
         Raylib.DrawLineV(m + new Vector2(0, -18), m + new Vector2(0, -6), c);
         Raylib.DrawLineV(m + new Vector2(0, 6), m + new Vector2(0, 18), c);
-        Raylib.DrawCircleV(m, 2, c);
+        Raylib.DrawCircleV(m, playful ? 3 : 2, playful ? Col.Rgba(255, 120, 200) : c);
+        if (playful)
+        {
+            Raylib.DrawCircleLinesV(m, 22, Col.Rgba(255, 160, 220, 140));
+        }
     }
 
     static void DrawBar(float x, float y, float w, float h, float t, Color back, Color fill, string label)
@@ -310,6 +327,7 @@ static class Renderer
         PickupKind.Health => Col.Rgba(255, 60, 70),
         PickupKind.Weapon => Col.Rgba(70, 220, 255),
         PickupKind.Shield => Col.Rgba(80, 180, 255),
+        PickupKind.Star => Col.Rgba(255, 230, 70),
         _ => Col.Rgba(255, 210, 60),
     };
 
@@ -374,7 +392,9 @@ static class Renderer
         {
             Raylib.ClearBackground(Col.Rgba(18, 10, 8));
         }
-        Raylib.DrawRectangleGradientV(0, sh / 2, sw, sh / 2, Col.Rgba(0, 0, 0, 0), Col.Rgba(0, 0, 0, 90));
+        Raylib.DrawRectangle(0, 0, sw, sh, Col.Rgba(40, 10, 50, 40));
+        Raylib.DrawRectangleGradientV(0, 0, sw, sh / 2, Col.Rgba(255, 140, 200, 28), Col.Rgba(0, 0, 0, 0));
+        Raylib.DrawRectangleGradientV(0, sh / 2, sw, sh / 2, Col.Rgba(0, 0, 0, 0), Col.Rgba(20, 0, 40, 70));
 
         Raylib.BeginMode3D(w.Cam);
         DrawOpenSpace(w);
@@ -385,8 +405,23 @@ static class Renderer
             if (!p.Alive) continue;
             Vector3 pos = w.ToWorld(p.Pos) + new Vector3(0, 1.2f + MathF.Sin(p.Age * 3.4f) * 0.25f, 0);
             Color col = PickupGlow(p.Kind);
-            Raylib.DrawSphere(pos, 0.55f, col);
-            Raylib.DrawSphere(pos, 0.28f, Color.White);
+            if (p.Kind == PickupKind.Star)
+            {
+                float spin = p.Age * 180f;
+                Raylib.DrawCube(pos, 0.85f, 0.18f, 0.85f, col);
+                Rlgl.PushMatrix();
+                Rlgl.Translatef(pos.X, pos.Y, pos.Z);
+                Rlgl.Rotatef(spin, 0, 1, 0);
+                Rlgl.Rotatef(45, 0, 0, 1);
+                Raylib.DrawCube(Vector3.Zero, 0.85f, 0.18f, 0.85f, Col.Rgba(255, 255, 180));
+                Rlgl.PopMatrix();
+                Raylib.DrawSphere(pos, 0.22f, Color.White);
+            }
+            else
+            {
+                Raylib.DrawSphere(pos, 0.55f, col);
+                Raylib.DrawSphere(pos, 0.28f, Color.White);
+            }
             Raylib.DrawCircle3D(w.ToWorld(p.Pos), 0.9f, Vector3.UnitX, 90, Col.Fade(col, 0.45f));
         }
 
@@ -394,7 +429,11 @@ static class Renderer
         {
             if (!b.Alive) continue;
             Vector3 pos = w.ToWorld(b.Pos, b.Alt);
-            Raylib.DrawSphere(pos, MathF.Max(0.22f, b.Radius * World.WorldScale * 0.9f), b.Tint);
+            float br = MathF.Max(0.22f, b.Radius * World.WorldScale * 0.9f);
+            Raylib.DrawSphere(pos, br * 1.45f, Col.Fade(b.Tint, 0.35f));
+            Raylib.DrawSphere(pos, br, b.Tint);
+            if (b.Owner == BulletOwner.Player)
+                Raylib.DrawSphere(pos, br * 0.4f, Color.White);
         }
 
         foreach (Enemy e in w.Enemies)
@@ -447,7 +486,7 @@ static class Renderer
             if (!f.Alive) continue;
             float t = Math.Clamp(f.Life / f.MaxLife, 0f, 1f);
             Vector2 scr = Raylib.GetWorldToScreen(w.ToWorld(f.Pos) + new Vector3(0, 2.2f, 0), w.Cam);
-            DrawTextCentered(c.Font, f.Text, scr, 16, Col.Fade(f.Color, t));
+            DrawTextCentered(c.Font, f.Text, scr, 22, Col.Fade(f.Color, t));
         }
 
         int sw2 = Raylib.GetScreenWidth();
@@ -481,7 +520,10 @@ static class Renderer
                     hz * cell + rng.NextSingle() * cell);
                 if (Vector3.DistanceSquared(p, cam) < 80f) continue;
                 float s = 0.07f + rng.NextSingle() * 0.14f;
-                Raylib.DrawSphere(p, s, Col.Rgba(255, 232, 210, 210));
+                Color star = (seed + k) % 3 == 0 ? Col.Rgba(255, 180, 230, 220)
+                    : (seed + k) % 3 == 1 ? Col.Rgba(180, 230, 255, 220)
+                    : Col.Rgba(255, 240, 160, 220);
+                Raylib.DrawSphere(p, s, star);
             }
             if ((seed & 7) == 0)
             {
@@ -490,10 +532,22 @@ static class Renderer
                     hy * cell + rng.NextSingle() * cell,
                     hz * cell + rng.NextSingle() * cell);
                 if (Vector3.DistanceSquared(rock, cam) < 400f) continue;
-                float rs = 0.7f + rng.NextSingle() * 1.6f;
-                Raylib.DrawCube(rock, rs, rs * 0.6f, rs * 0.8f, Col.Rgba(70, 52, 48));
+                float rs = 1.4f + rng.NextSingle() * 2.2f;
+                Color candy = (seed & 24) switch
+                {
+                    0 => Col.Rgba(255, 110, 180),
+                    8 => Col.Rgba(80, 220, 200),
+                    16 => Col.Rgba(255, 210, 70),
+                    _ => Col.Rgba(140, 160, 255),
+                };
+                Raylib.DrawSphere(rock, rs, candy);
+                Raylib.DrawSphere(rock + new Vector3(0, rs * 0.15f, 0), rs * 0.55f, Color.White);
             }
         }
+        Raylib.DrawSphere(new Vector3(48f, 26f, -62f), 9.5f, Col.Rgba(255, 236, 150));
+        Raylib.DrawSphere(new Vector3(45.5f, 28.2f, -58f), 1.1f, Col.Rgba(40, 40, 70));
+        Raylib.DrawSphere(new Vector3(51.2f, 28.4f, -58f), 1.1f, Col.Rgba(40, 40, 70));
+        Raylib.DrawSphere(new Vector3(48.2f, 24.6f, -54f), 0.7f, Col.Rgba(255, 120, 160));
     }
 
     static void DrawAbyssTerrain(World w, ContentPack c)
@@ -510,16 +564,17 @@ static class Renderer
             float rad = 38f + (i % 5) * 2.4f;
             var pos = new Vector3(MathF.Cos(ang) * rad, 1.2f + (i % 3) * 0.8f, MathF.Sin(ang) * rad * 0.7f);
             float s = 3.2f + (i % 4) * 1.1f;
-            Raylib.DrawCube(pos, s * 0.55f, s * 1.6f, s * 0.4f, Col.Rgba(228, 214, 190));
-            Raylib.DrawCylinder(pos + new Vector3(0, s * 0.7f, 0), 0.15f, 0.45f, s, 5, Col.Rgba(240, 230, 205));
+            Color candy = i % 3 == 0 ? Col.Rgba(255, 170, 210) : i % 3 == 1 ? Col.Rgba(160, 230, 255) : Col.Rgba(255, 230, 140);
+            Raylib.DrawCube(pos, s * 0.55f, s * 1.6f, s * 0.4f, candy);
+            Raylib.DrawCylinder(pos + new Vector3(0, s * 0.7f, 0), 0.15f, 0.45f, s, 5, Col.Rgba(255, 250, 230));
         }
 
         for (int i = 0; i < 5; i++)
         {
             float a = i * MathF.Tau / 5f + 0.3f;
             var p = new Vector3(MathF.Cos(a) * 30f, 0, MathF.Sin(a) * 22f);
-            Raylib.DrawCylinder(p + new Vector3(0, 4.4f, 0), 0.28f, 0.9f, 9.2f, 6, Col.Rgba(236, 226, 200));
-            Raylib.DrawSphere(p + new Vector3(0, 9.4f, 0), 0.7f, Col.Rgba(40, 230, 210));
+            Raylib.DrawCylinder(p + new Vector3(0, 4.4f, 0), 0.28f, 0.9f, 9.2f, 6, Col.Rgba(255, 210, 240));
+            Raylib.DrawSphere(p + new Vector3(0, 9.4f, 0), 0.9f, World.Rainbow(w.Time * 0.4f + i));
             Raylib.DrawCylinderEx(p + new Vector3(-2.2f, 2.5f, 0), p + new Vector3(2.2f, 2.5f, 0), 0.18f, 0.18f, 5, Col.Rgba(220, 210, 185));
         }
 
@@ -527,7 +582,7 @@ static class Renderer
         {
             float a = w.Time * 0.08f + i * 0.7f;
             var orb = new Vector3(MathF.Cos(a) * (12 + i * 0.8f), 3.8f + MathF.Sin(w.Time * 0.5f + i) * 1.2f, MathF.Sin(a * 0.8f) * (9 + i * 0.25f));
-            Raylib.DrawSphere(orb, 0.12f + (i % 3) * 0.04f, Col.Rgba(255, 190, 80, 160));
+            Raylib.DrawSphere(orb, 0.16f + (i % 3) * 0.05f, World.Rainbow(w.Time * 0.3f + i * 0.08f));
         }
         _ = rng;
     }
@@ -542,10 +597,10 @@ static class Renderer
         Rlgl.Translatef(p.X, p.Y, p.Z);
         Rlgl.Rotatef(-w.Player.Yaw * Raylib.RAD2DEG, 0, 1, 0);
         Rlgl.Rotatef(w.Player.Pitch * Raylib.RAD2DEG, 1, 0, 0);
-        Raylib.DrawCube(new Vector3(0f, 0f, -0.45f), 0.5f, 0.28f, 1.7f, Col.Rgba(200, 230, 240));
-        Raylib.DrawCube(new Vector3(0.7f, 0f, 0.1f), 0.9f, 0.08f, 0.35f, Col.Rgba(80, 180, 220));
-        Raylib.DrawCube(new Vector3(-0.7f, 0f, 0.1f), 0.9f, 0.08f, 0.35f, Col.Rgba(80, 180, 220));
-        Raylib.DrawSphere(new Vector3(0f, 0.05f, 0.55f), 0.16f, Col.Rgba(80, 240, 255));
+        Raylib.DrawCube(new Vector3(0f, 0f, -0.45f), 0.5f, 0.28f, 1.7f, Col.Rgba(255, 240, 250));
+        Raylib.DrawCube(new Vector3(0.7f, 0f, 0.1f), 0.9f, 0.08f, 0.35f, World.Rainbow(w.Time * 0.7f));
+        Raylib.DrawCube(new Vector3(-0.7f, 0f, 0.1f), 0.9f, 0.08f, 0.35f, World.Rainbow(w.Time * 0.7f + 0.3f));
+        Raylib.DrawSphere(new Vector3(0f, 0.05f, 0.55f), 0.2f, World.Rainbow(w.Time * 1.4f));
         Rlgl.PopMatrix();
         if (w.Player.Shield > 0)
             Raylib.DrawSphereWires(feet + new Vector3(0, 1.1f, 0), 1.5f, 8, 8, Col.Rgba(40, 230, 210, 180));
@@ -569,7 +624,7 @@ static class Renderer
             EnemyKind.Prism => 5.0f,
             _ => 4.6f,
         };
-        float bob = MathF.Sin(e.Age * 2.8f) * (e.Kind == EnemyKind.Wraith ? 0.35f : 0.1f);
+        float bob = MathF.Sin(e.Age * 3.4f) * (e.Kind == EnemyKind.Wraith ? 0.45f : 0.22f);
         Color tint = e.Flash > 0 ? Col.Rgba(255, 240, 200) : Color.White;
         if (e.SpawnIn > 0) tint = Col.Fade(Color.White, 0.4f + 0.6f * (1f - Math.Clamp(e.SpawnIn, 0, 1)));
         Vector3 center = feet + new Vector3(0, size * 0.48f + bob, 0);

@@ -74,7 +74,7 @@ static class Screens
         int sw = Raylib.GetScreenWidth();
         int sh = Raylib.GetScreenHeight();
         Renderer.DrawTextCentered(c.Font, "VOID HUNTER", new Vector2(sw * 0.5f, sh * 0.16f), 64, Color.White);
-        Renderer.DrawTextCentered(c.Font, "HOLD THE RIFT. BURN THE SWARM.", new Vector2(sw * 0.5f, sh * 0.18f + 48), 18, Col.Rgba(140, 220, 255));
+        Renderer.DrawTextCentered(c.Font, "HOLD THE RIFT. THEN RACE THE STAR SKY!", new Vector2(sw * 0.5f, sh * 0.18f + 48), 18, Col.Rgba(140, 220, 255));
         Renderer.DrawTextCentered(c.Font, $"BEST  {SaveData.HighScore:N0}", new Vector2(sw * 0.5f, sh * 0.18f + 78), 20, Col.Rgba(255, 210, 90));
 
         var items = MainItems;
@@ -84,7 +84,7 @@ static class Screens
             new Vector2(sw * 0.5f, sh - 36), 14, Col.Rgba(170, 190, 210, 180));
     }
 
-    static readonly string[] MainItems = ["RIFT CAMPAIGN", "ABYSS WORLD  3D", "HOW TO PLAY", "QUIT"];
+    static readonly string[] MainItems = ["RIFT CAMPAIGN", "STAR SKY  3D", "HOW TO PLAY", "QUIT"];
 
     public static int UpdateMain(MenuController menu)
     {
@@ -104,7 +104,7 @@ static class Screens
             "Pilot the interceptor. Survive the rift swarms.",
             "WASD or arrows move. Mouse aims. Left click or Space fires.",
             "Right click or Shift dashes — brief invulnerability, short cooldown.",
-            "In the Abyss: point the mouse to turn the plane. Arrows/WASD move. Q/E height. Aliens hunt you anywhere.",
+            "Star Sky: point the mouse to turn. Arrows fly. Catch stars. Aliens chase you anywhere!",
             "Keys 1-4 and mouse wheel switch unlocked weapons.",
             "PULSE is rapid. SPREAD covers arcs. RAIL pierces. NOVA detonates.",
             "Weapon crates upgrade the equipped gun, then unlock the next.",
@@ -174,7 +174,7 @@ static class Screens
         int sw = Raylib.GetScreenWidth();
         int sh = Raylib.GetScreenHeight();
         Raylib.DrawRectangle(0, 0, sw, sh, Col.Rgba(4, 10, 18, 200));
-        string title = w.WantsWorldGate ? "RIFT CONQUERED" : "LEVEL CLEARED";
+        string title = w.WantsWorldGate ? "RIFT CONQUERED" : w.IsAbyss ? "STAR LEVEL DONE!" : "LEVEL CLEARED";
         string sub = w.WantsWorldGate ? "CHOOSE YOUR PATH" : $"{w.WorldName}  LEVEL {w.Wave}  COMPLETE";
         DrawResultCard(c, sw * 0.5f, sh * 0.14f, title, sub, w.WantsWorldGate ? Col.Rgba(210, 140, 255) : Col.Rgba(90, 230, 180), w, lost: false);
         var items = ClearItemsFor(w);
@@ -183,7 +183,7 @@ static class Screens
     }
 
     static readonly string[] ClearItems = ["NEXT LEVEL", "MAIN MENU", "QUIT GAME"];
-    static readonly string[] GateItems = ["ENTER THE ABYSS", "CLAIM VICTORY", "MAIN MENU", "QUIT GAME"];
+    static readonly string[] GateItems = ["ENTER STAR SKY", "CLAIM VICTORY", "MAIN MENU", "QUIT GAME"];
     static string[] ClearItemsFor(World w) => w.WantsWorldGate ? GateItems : ClearItems;
 
     public static int UpdateLevelClear(World w, MenuController menu)
@@ -200,7 +200,7 @@ static class Screens
         int sw = Raylib.GetScreenWidth();
         int sh = Raylib.GetScreenHeight();
         Raylib.DrawRectangle(0, 0, sw, sh, Col.Rgba(4, 10, 16, 170));
-        string sub = w.EndedInAbyss ? "RIFT AND ABYSS ARE SEALED" : "THE RIFT IS SEALED";
+        string sub = w.EndedInAbyss ? "YOU SAVED THE STARS!" : "THE RIFT IS SEALED";
         DrawResultCard(c, sw * 0.5f, sh * 0.16f, "YOU WON", sub, Col.Rgba(255, 220, 90), w, lost: false);
         var items = WinItems;
         var rects = ButtonColumn(sw, sh * 0.58f, items.Length);
@@ -229,10 +229,14 @@ static class Screens
         {
             DrawStat(c, cx, y + 104, "HULL LEFT", $"{Math.Clamp(w.Player.Hp / Math.Max(1f, w.Player.MaxHp), 0f, 1f) * 100f:0}%");
             DrawStat(c, cx, y + 130, "GRADE / BONUS", $"{w.ResultGrade}    +{w.ClearBonus}");
+            if (w.IsAbyss)
+                DrawStat(c, cx, y + 156, "STARS CAUGHT", $"{w.Stars}");
         }
         else
         {
             DrawStat(c, cx, y + 104, "BEST", $"{SaveData.HighScore:N0}");
+            if (w.IsAbyss)
+                DrawStat(c, cx, y + 130, "STARS CAUGHT", $"{w.Stars}");
         }
         if (w.NewHigh)
             Renderer.DrawTextCentered(c.Font, "NEW HIGH SCORE", new Vector2(cx, y + (lost ? 136 : 160)), 20, Col.Rgba(255, 210, 80));

@@ -5,7 +5,7 @@ namespace VoidHunter;
 
 enum EnemyKind { Scout, Strafer, Bruiser, Wasp, Spitter, Boss, Prism, Hunter, Wraith, Spire, Hydra }
 enum WeaponKind { Pulse, Spread, Rail, Nova }
-enum PickupKind { Health, Weapon, Shield, Overdrive }
+enum PickupKind { Health, Weapon, Shield, Overdrive, Star }
 enum BulletOwner { Player, Enemy }
 
 sealed class Bullet
@@ -97,14 +97,15 @@ sealed class World
     public const float WorldScale = 0.045f;
     public int Chapter = 1;
     public int Score, Wave, Combo = 1, ComboKills;
-    public int Kills, LevelKills, LevelScore, ClearBonus;
-    public float ComboT, Shake, BannerT, WaveRest, GameOverDelay, Time, LevelTime;
+    public int Kills, LevelKills, LevelScore, ClearBonus, Stars;
+    public float ComboT, Shake, BannerT, WaveRest, GameOverDelay, Time, LevelTime, HintT;
     public string Banner = "";
+    public string Hint = "";
     public string ResultGrade = "C";
     public bool WantsGameOver, WantsLevelClear, WantsVictory, WantsWorldGate, NewHigh, EndedInAbyss;
     public bool AutoPlay;
     public bool IsAbyss => Chapter >= 2;
-    public string WorldName => IsAbyss ? "ABYSS" : "RIFT";
+    public string WorldName => IsAbyss ? "STAR SKY" : "RIFT";
     public Rectangle Playfield;
     public Vector2 ShakeOff;
     public Camera3D Cam;
@@ -184,6 +185,7 @@ sealed class World
         UpdateFx(dt);
 
         if (BannerT > 0) BannerT -= dt;
+        if (HintT > 0) HintT -= dt;
         if (Wave > 0 && Player.Alive && !WantsLevelClear && !WantsVictory)
             LevelTime += dt;
 
@@ -274,7 +276,7 @@ sealed class World
         {
             Vector2 back = Player.Pos - V.FromAngle(Player.Angle) * 18f;
             SpawnParticle(back, -V.FromAngle(Player.Angle) * Rng.Float(40, 120) + V.Perp(V.FromAngle(Player.Angle)) * Rng.Float(-30, 30),
-                Rng.Float(0.12f, 0.28f), Rng.Float(5, 11), Col.Rgba(80, 230, 255, 200), true);
+                Rng.Float(0.12f, 0.28f), Rng.Float(5, 11), IsAbyss ? Rainbow(Time * 2f) : Col.Rgba(80, 230, 255, 200), true);
         }
     }
 
@@ -374,7 +376,7 @@ sealed class World
                 {
                     Vector2 off = extra > 0 ? V.Perp(dir) * (i == 0 ? -8f : 8f) : Vector2.Zero;
                     SpawnBullet(BulletOwner.Player, muzzle + off, dir * 940f * reach, 5.5f, 12 + lv * 2, 1.1f * reach, 0, 0,
-                        Col.Rgba(90, 240, 255), WeaponKind.Pulse);
+                        IsAbyss ? Rainbow(Time * 0.9f + i * 0.12f) : Col.Rgba(90, 240, 255), WeaponKind.Pulse);
                 }
                 break;
             case WeaponKind.Spread:
@@ -386,24 +388,34 @@ sealed class World
                     float t = shots == 1 ? 0 : (i / (float)(shots - 1) - 0.5f);
                     Vector2 d = V.FromAngle(Player.Angle + t * spread);
                     SpawnBullet(BulletOwner.Player, muzzle, d * 820f * reach, 4.5f, 7 + lv, 0.9f * reach, 0, 0,
-                        Col.Rgba(190, 120, 255), WeaponKind.Spread);
+                        IsAbyss ? Rainbow(Time * 0.8f + i * 0.1f) : Col.Rgba(190, 120, 255), WeaponKind.Spread);
                 }
                 break;
             case WeaponKind.Rail:
                 Player.FireCd = (lv >= 3 ? 0.38f : 0.48f) * od;
                 SpawnBullet(BulletOwner.Player, muzzle, dir * 1500f * reach, 7f, 42 + lv * 10, 0.7f * reach, lv >= 2 ? 6 : 3, 0,
-                    Col.Rgba(255, 230, 120), WeaponKind.Rail);
+                    IsAbyss ? Col.Rgba(255, 90, 220) : Col.Rgba(255, 230, 120), WeaponKind.Rail);
                 Shake = MathF.Max(Shake, 3.5f);
                 break;
             default:
                 Player.FireCd = (lv >= 3 ? 0.42f : 0.55f) * od;
                 SpawnBullet(BulletOwner.Player, muzzle, dir * 520f * reach, 9f, 26 + lv * 6, 1.4f * reach, 0, (78f + lv * 10) * reach,
-                    Col.Rgba(255, 140, 60), WeaponKind.Nova);
+                    IsAbyss ? Col.Rgba(255, 170, 40) : Col.Rgba(255, 140, 60), WeaponKind.Nova);
                 break;
         }
 
         _audio.Shoot(Player.Weapon);
-        Burst(muzzle, dir, 6, Col.Rgba(200, 240, 255), 180, 5);
+        Burst(muzzle, dir, 6, IsAbyss ? Rainbow(Time) : Col.Rgba(200, 240, 255), 180, 5);
+    }
+
+    public static Color Rainbow(float t)
+    {
+        t = t - MathF.Floor(t);
+        float a = t * MathF.Tau;
+        return Col.Rgba(
+            (int)(140 + 115 * MathF.Sin(a)),
+            (int)(140 + 115 * MathF.Sin(a + 2.1f)),
+            (int)(140 + 115 * MathF.Sin(a + 4.2f)));
     }
 
     void TryResolveLevel()
@@ -484,8 +496,8 @@ sealed class World
                 int escorts = 5 + _bossIndex;
                 for (int i = 0; i < escorts; i++)
                     _queue.Add((Rng.Chance(0.5f) ? EnemyKind.Wraith : EnemyKind.Prism, 0.16f));
-                Banner = _bossIndex <= 2 ? "HYDRA" : $"HYDRA {_bossIndex}";
-                BannerT = 2.4f;
+                Banner = "BIG ALIEN BOSS!";
+                BannerT = 2.6f;
                 _audio.Boss();
                 return;
             }
@@ -499,6 +511,8 @@ sealed class World
                 Add(EnemyKind.Wraith, 4 + wave / 2, 0.1f);
                 Add(EnemyKind.Spire, Math.Max(1, wave / 3), 0.5f);
             }
+            Banner = wave == 1 ? "CATCH THE STARS!" : $"LEVEL {wave}  GO GO GO!";
+            BannerT = 2.1f;
             return;
         }
 
@@ -707,8 +721,11 @@ sealed class World
         Player.Aim3 = new Vector3(0, 0, -1);
         Player.Yaw = 0f;
         Player.Pitch = -0.18f;
-        Banner = "THE ABYSS";
-        BannerT = 2.2f;
+        Stars = 0;
+        Banner = "LET'S FLY!";
+        BannerT = 2.5f;
+        Hint = "POINT WITH THE MOUSE     FLY WITH ARROWS";
+        HintT = 7f;
         RefreshCamera();
         _audio.Boss();
     }
@@ -1085,8 +1102,13 @@ sealed class World
             p.Age += dt;
             p.Life -= dt;
             if (p.Life <= 0) p.Alive = false;
+            if (IsAbyss && p.Kind == PickupKind.Star && Player.Alive)
+            {
+                Vector2 to = Player.Pos - p.Pos;
+                if (to.LengthSquared() > 1f) p.Pos += V.Norm(to) * 420f * dt;
+            }
             bool near = IsAbyss
-                ? Vector3.DistanceSquared(ToWorld(p.Pos, 1.3f), ToWorld(Player.Pos, Player.Alt)) < 4.5f * 4.5f
+                ? Vector3.DistanceSquared(ToWorld(p.Pos, Player.Alt), ToWorld(Player.Pos, Player.Alt)) < 6.2f * 6.2f
                 : Vector2.DistanceSquared(p.Pos, Player.Pos) < 42f * 42f;
             if (Player.Alive && near)
                 Collect(p);
@@ -1116,6 +1138,19 @@ sealed class World
                 break;
             case PickupKind.Weapon:
                 UpgradeWeapon();
+                break;
+            case PickupKind.Star:
+                Stars++;
+                Score += 25 * Combo;
+                LevelScore += 25 * Combo;
+                Float(p.Pos, "STAR!", Col.Rgba(255, 230, 80));
+                if (Stars > 0 && Stars % 10 == 0)
+                {
+                    Player.Hp = MathF.Min(Player.MaxHp, Player.Hp + 16f);
+                    Banner = "STAR BONUS!";
+                    BannerT = 1.3f;
+                    Float(Player.Pos, "+HEALTH", Col.Rgba(255, 120, 180));
+                }
                 break;
         }
     }
@@ -1150,6 +1185,14 @@ sealed class World
         WeaponKind.Spread => "SPREAD",
         WeaponKind.Rail => "RAIL",
         _ => "NOVA",
+    };
+
+    public static string KidWeaponName(WeaponKind w) => w switch
+    {
+        WeaponKind.Pulse => "BLASTER",
+        WeaponKind.Spread => "SPRINKLES",
+        WeaponKind.Rail => "ZAPPER",
+        _ => "BOOM",
     };
 
     void Collide()
@@ -1241,6 +1284,17 @@ sealed class World
         LevelKills++;
         LevelScore += gained;
         Float(e.Pos, $"+{gained}", boss ? Col.Rgba(255, 200, 80) : Col.Rgba(230, 230, 240));
+        if (IsAbyss)
+        {
+            if (Combo == 2) Float(e.Pos + new Vector2(0, -28), "NICE!", Col.Rgba(120, 255, 180));
+            else if (Combo == 4) Float(e.Pos + new Vector2(0, -28), "SUPER!", Col.Rgba(255, 210, 80));
+            else if (Combo == 6) Float(e.Pos + new Vector2(0, -28), "MEGA!", Col.Rgba(255, 120, 220));
+            else if (Combo >= 8) Float(e.Pos + new Vector2(0, -28), "STAR POWER!", Col.Rgba(255, 240, 90));
+            int n = boss ? 8 : 2 + Combo / 3;
+            for (int i = 0; i < n && Pickups.Count < 90; i++)
+                SpawnPickup(PickupKind.Star, e.Pos + V.FromAngle(Rng.Float(0, MathF.Tau)) * Rng.Float(12, 70));
+            Burst(e.Pos, Vector2.Zero, 18, Rainbow(Time + e.Age), 300, 8);
+        }
         _audio.Explode(boss);
         Shake = MathF.Max(Shake, boss ? 14f : 4.5f);
         Burst(e.Pos, Vector2.Zero, boss ? 56 : 22, DeathColor(e.Kind), boss ? 360 : 240, boss ? 16 : 9);
@@ -1266,7 +1320,7 @@ sealed class World
             SpawnPickup(PickupKind.Shield, e.Pos + new Vector2(0, 36));
             if (Rng.Chance(0.7f)) SpawnPickup(PickupKind.Overdrive, e.Pos);
         }
-        else if (Rng.Chance(drop))
+        else if (Rng.Chance(IsAbyss ? MathF.Min(0.55f, drop * 1.8f) : drop))
         {
             PickupKind k = Rng.Pick(PickupKind.Health, PickupKind.Weapon, PickupKind.Shield, PickupKind.Overdrive, PickupKind.Health);
             SpawnPickup(k, e.Pos);
@@ -1355,8 +1409,9 @@ sealed class World
 
     void SpawnPickup(PickupKind kind, Vector2 pos)
     {
+        if (Pickups.Count > 110) return;
         if (!IsAbyss) pos = V.ClampTo(pos, Playfield, 20);
-        Pickups.Add(new Pickup { Alive = true, Kind = kind, Pos = pos });
+        Pickups.Add(new Pickup { Alive = true, Kind = kind, Pos = pos, Life = kind == PickupKind.Star ? 8f : 14f });
     }
 
     void SpawnParticle(Vector2 pos, Vector2 vel, float life, float size, Color color, bool add)

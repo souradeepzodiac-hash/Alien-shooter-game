@@ -108,6 +108,7 @@ sealed class ContentPack : IDisposable
         PickupKind.Health => Health,
         PickupKind.Weapon => Weapon,
         PickupKind.Shield => Shield,
+        PickupKind.Star => Overdrive,
         _ => Overdrive,
     };
 
