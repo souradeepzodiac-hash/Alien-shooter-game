@@ -574,57 +574,63 @@ static class Renderer
         if (c.OwnsGround && c.GroundModel.MeshCount > 0)
             Raylib.DrawModel(c.GroundModel, new Vector3(0, -0.02f, 0), 1f, Color.White);
         else
-            Raylib.DrawPlane(Vector3.Zero, new Vector2(96, 74), Col.Rgba(12, 10, 8));
+            Raylib.DrawPlane(Vector3.Zero, new Vector2(96, 74), Col.Rgba(180, 140, 220));
 
-        var rng = new Random(4);
-        for (int i = 0; i < 14; i++)
+        // Floating candy islands
+        for (int i = 0; i < 8; i++)
         {
-            float ang = 0.4f + i * 0.42f;
-            float rad = 38f + (i % 5) * 2.4f;
-            var pos = new Vector3(MathF.Cos(ang) * rad, 1.2f + (i % 3) * 0.8f, MathF.Sin(ang) * rad * 0.7f);
-            float s = 3.2f + (i % 4) * 1.1f;
-            Color candy = i % 3 == 0 ? Col.Rgba(255, 170, 210) : i % 3 == 1 ? Col.Rgba(160, 230, 255) : Col.Rgba(255, 230, 140);
-            Raylib.DrawCube(pos, s * 0.55f, s * 1.6f, s * 0.4f, candy);
-            Raylib.DrawCylinder(pos + new Vector3(0, s * 0.7f, 0), 0.15f, 0.45f, s, 5, Col.Rgba(255, 250, 230));
+            float a = i * MathF.Tau / 8f + 0.2f;
+            var island = new Vector3(MathF.Cos(a) * 42f, 6f + MathF.Sin(w.Time * 0.7f + i) * 1.4f, MathF.Sin(a) * 32f);
+            Color top = i % 2 == 0 ? Col.Rgba(255, 150, 210) : Col.Rgba(120, 220, 255);
+            Raylib.DrawCylinder(island, 3.4f, 4.2f, 1.2f, 10, top);
+            Raylib.DrawSphere(island + new Vector3(0, 1.5f, 0), 1.1f, World.Rainbow(w.Time * 0.3f + i * 0.2f));
         }
 
-        for (int i = 0; i < 5; i++)
+        // Lollipop trees
+        for (int i = 0; i < 10; i++)
         {
-            float a = i * MathF.Tau / 5f + 0.3f;
-            var p = new Vector3(MathF.Cos(a) * 30f, 0, MathF.Sin(a) * 22f);
-            Raylib.DrawCylinder(p + new Vector3(0, 4.4f, 0), 0.28f, 0.9f, 9.2f, 6, Col.Rgba(255, 210, 240));
-            Raylib.DrawSphere(p + new Vector3(0, 9.4f, 0), 0.9f, World.Rainbow(w.Time * 0.4f + i));
-            Raylib.DrawCylinderEx(p + new Vector3(-2.2f, 2.5f, 0), p + new Vector3(2.2f, 2.5f, 0), 0.18f, 0.18f, 5, Col.Rgba(220, 210, 185));
+            float a = 0.5f + i * 0.61f;
+            var p = new Vector3(MathF.Cos(a) * 28f, 0f, MathF.Sin(a) * 20f);
+            Color candy = World.Rainbow(i * 0.13f);
+            Raylib.DrawCylinder(p + new Vector3(0, 3.2f, 0), 0.22f, 0.28f, 6.4f, 6, Col.Rgba(255, 245, 250));
+            Raylib.DrawSphere(p + new Vector3(0, 7.2f, 0), 1.8f, candy);
+            Raylib.DrawSphere(p + new Vector3(0, 7.6f, 0), 0.7f, Color.White);
         }
 
-        for (int i = 0; i < 18; i++)
+        // Rainbow hoop
+        for (int i = 0; i < 24; i++)
         {
-            float a = w.Time * 0.08f + i * 0.7f;
-            var orb = new Vector3(MathF.Cos(a) * (12 + i * 0.8f), 3.8f + MathF.Sin(w.Time * 0.5f + i) * 1.2f, MathF.Sin(a * 0.8f) * (9 + i * 0.25f));
-            Raylib.DrawSphere(orb, 0.16f + (i % 3) * 0.05f, World.Rainbow(w.Time * 0.3f + i * 0.08f));
+            float a = i * MathF.Tau / 24f + w.Time * 0.15f;
+            var p = new Vector3(MathF.Cos(a) * 18f, 8f + MathF.Sin(a * 2f) * 1.5f, MathF.Sin(a) * 18f);
+            Raylib.DrawSphere(p, 0.55f, World.Rainbow(i / 24f + w.Time * 0.2f));
         }
-        _ = rng;
+
+        // Distant candy planets
+        Raylib.DrawSphere(new Vector3(-55f, 22f, -40f), 7.5f, Col.Rgba(255, 110, 180));
+        Raylib.DrawSphere(new Vector3(-52f, 24f, -38f), 2.4f, Col.Rgba(255, 200, 230));
+        Raylib.DrawSphere(new Vector3(58f, 18f, -28f), 6.2f, Col.Rgba(90, 210, 255));
+        Raylib.DrawCylinder(new Vector3(58f, 18f, -28f), 8.4f, 8.4f, 0.45f, 16, Col.Rgba(255, 220, 80));
+
+        // Sparkle orbit
+        for (int i = 0; i < 22; i++)
+        {
+            float a = w.Time * 0.55f + i * 0.28f;
+            var orb = new Vector3(MathF.Cos(a) * (10 + i * 0.4f), 4.2f + MathF.Sin(w.Time * 1.4f + i) * 1.6f, MathF.Sin(a) * (8 + i * 0.2f));
+            Raylib.DrawSphere(orb, 0.22f + (i % 3) * 0.08f, World.Rainbow(w.Time * 0.5f + i * 0.07f));
+        }
     }
 
     static void DrawShip3D(World w, ContentPack c)
     {
         Vector3 feet = w.ToWorld(w.Player.Pos, w.Player.Alt);
         if (MathF.Abs(feet.X) < 52f && MathF.Abs(feet.Z) < 42f)
-            Raylib.DrawCircle3D(new Vector3(feet.X, 0.04f, feet.Z), 1.2f, Vector3.UnitX, 90, Col.Rgba(0, 0, 0, 90));
-        Vector3 p = feet;
-        Rlgl.PushMatrix();
-        Rlgl.Translatef(p.X, p.Y, p.Z);
-        Rlgl.Rotatef(-w.Player.Yaw * Raylib.RAD2DEG, 0, 1, 0);
-        Rlgl.Rotatef(w.Player.Pitch * Raylib.RAD2DEG, 1, 0, 0);
-        Raylib.DrawCube(new Vector3(0f, 0f, -0.45f), 0.5f, 0.28f, 1.7f, Col.Rgba(255, 240, 250));
-        Raylib.DrawCube(new Vector3(0.7f, 0f, 0.1f), 0.9f, 0.08f, 0.35f, World.Rainbow(w.Time * 0.7f));
-        Raylib.DrawCube(new Vector3(-0.7f, 0f, 0.1f), 0.9f, 0.08f, 0.35f, World.Rainbow(w.Time * 0.7f + 0.3f));
-        float pulse = 0.18f + 0.12f * (0.5f + 0.5f * MathF.Sin(w.Time * 22f));
-        Raylib.DrawSphere(new Vector3(0f, 0.05f, 0.55f), pulse, World.Rainbow(w.Time * 1.4f));
-        Rlgl.PopMatrix();
+            Raylib.DrawCircle3D(new Vector3(feet.X, 0.04f, feet.Z), 1.6f, Vector3.UnitX, 90, Col.Rgba(0, 0, 0, 80));
+        float pulse = 0.35f + 0.18f * (0.5f + 0.5f * MathF.Sin(w.Time * 22f));
+        Raylib.DrawSphere(feet + new Vector3(0f, 0.2f, 1.1f), pulse, World.Rainbow(w.Time * 1.4f));
+        if (c.Player.Id != 0)
+            Raylib.DrawBillboard(w.Cam, c.Player, feet + new Vector3(0, 1.15f, 0), 4.4f, Color.White);
         if (w.Player.Shield > 0)
-            Raylib.DrawSphereWires(feet + new Vector3(0, 1.1f, 0), 1.5f, 8, 8, Col.Rgba(40, 230, 210, 180));
-        _ = c;
+            Raylib.DrawSphereWires(feet + new Vector3(0, 1.1f, 0), 2.2f, 8, 8, Col.Rgba(40, 230, 210, 180));
     }
 
     static void DrawAlien3D(World w, ContentPack c, Enemy e)
@@ -637,12 +643,12 @@ static class Renderer
 
         float size = e.Kind switch
         {
-            EnemyKind.Hydra => 11f,
-            EnemyKind.Spire => 6.4f,
-            EnemyKind.Hunter => 5.4f,
-            EnemyKind.Wraith => 5.2f,
-            EnemyKind.Prism => 5.0f,
-            _ => 4.6f,
+            EnemyKind.Hydra => 14f,
+            EnemyKind.Spire => 7.6f,
+            EnemyKind.Hunter => 6.8f,
+            EnemyKind.Wraith => 6.6f,
+            EnemyKind.Prism => 6.2f,
+            _ => 5.6f,
         };
         float bob = MathF.Sin(e.Age * 6.5f) * (e.Kind == EnemyKind.Wraith ? 0.55f : 0.32f);
         float flap = 1f + 0.14f * MathF.Sin(e.Age * 11f);
@@ -650,14 +656,11 @@ static class Renderer
         Color tint = e.Flash > 0 ? Col.Rgba(255, 240, 200) : Color.White;
         if (e.SpawnIn > 0) tint = Col.Fade(Color.White, 0.4f + 0.6f * (1f - Math.Clamp(e.SpawnIn, 0, 1)));
         Vector3 center = feet + new Vector3(0, size * 0.48f + bob, 0);
+        Raylib.DrawSphere(center, size * 0.38f, Col.Fade(DeathTint(e.Kind), 0.22f));
         if (e.Flash > 0)
-            Raylib.DrawSphere(center, size * 0.7f, Col.Fade(Color.White, 0.35f));
+            Raylib.DrawSphere(center, size * 0.7f, Col.Fade(Color.White, 0.4f));
         Raylib.DrawBillboard(w.Cam, tex, center, size * flap, tint);
-        Rlgl.PushMatrix();
-        Rlgl.Translatef(center.X, center.Y - size * 0.15f, center.Z);
-        Rlgl.Rotatef(spin, 0, 1, 0);
-        Raylib.DrawCube(Vector3.Zero, size * 0.22f, size * 0.12f, size * 0.22f, Col.Fade(DeathTint(e.Kind), 0.55f));
-        Rlgl.PopMatrix();
+        _ = spin;
     }
 
     static void DrawBooms(World w)
