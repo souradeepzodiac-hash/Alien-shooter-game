@@ -43,6 +43,7 @@ sealed class Particle
 {
     public bool Alive;
     public Vector2 Pos, Vel;
+    public float Alt, VelAlt;
     public float Life, MaxLife, Size, Drag;
     public Color Color;
     public bool Additive;
@@ -52,6 +53,7 @@ sealed class RingFx
 {
     public bool Alive;
     public Vector2 Pos;
+    public float Alt;
     public float Life, MaxLife, Radius, Grow;
     public Color Color;
 }
@@ -60,8 +62,17 @@ sealed class Floater
 {
     public bool Alive;
     public Vector2 Pos;
+    public float Alt;
     public string Text = "";
     public float Life, MaxLife;
+    public Color Color;
+}
+
+sealed class Boom
+{
+    public bool Alive;
+    public Vector3 Pos;
+    public float Life, MaxLife, Size;
     public Color Color;
 }
 
@@ -92,6 +103,7 @@ sealed class World
     public readonly List<Particle> Particles = [];
     public readonly List<RingFx> Rings = [];
     public readonly List<Floater> Floaters = [];
+    public readonly List<Boom> Booms = [];
 
     public const int FinalLevel = 10;
     public const float WorldScale = 0.045f;
@@ -120,7 +132,7 @@ sealed class World
     public void StartNew()
     {
         Enemies.Clear(); Bullets.Clear(); Pickups.Clear();
-        Particles.Clear(); Rings.Clear(); Floaters.Clear();
+        Particles.Clear(); Rings.Clear(); Floaters.Clear(); Booms.Clear();
         _queue.Clear();
         Score = 0; Wave = 0; Combo = 1; ComboKills = 0;
         Kills = 0; LevelKills = 0; LevelScore = 0; ClearBonus = 0;
@@ -276,7 +288,7 @@ sealed class World
         {
             Vector2 back = Player.Pos - V.FromAngle(Player.Angle) * 18f;
             SpawnParticle(back, -V.FromAngle(Player.Angle) * Rng.Float(40, 120) + V.Perp(V.FromAngle(Player.Angle)) * Rng.Float(-30, 30),
-                Rng.Float(0.12f, 0.28f), Rng.Float(5, 11), IsAbyss ? Rainbow(Time * 2f) : Col.Rgba(80, 230, 255, 200), true);
+                Rng.Float(0.12f, 0.28f), Rng.Float(5, 11), IsAbyss ? Rainbow(Time * 2f) : Col.Rgba(80, 230, 255, 200), true, IsAbyss ? Player.Alt : 0f);
         }
     }
 
@@ -405,7 +417,9 @@ sealed class World
         }
 
         _audio.Shoot(Player.Weapon);
-        Burst(muzzle, dir, 6, IsAbyss ? Rainbow(Time) : Col.Rgba(200, 240, 255), 180, 5);
+        Burst(muzzle, dir, IsAbyss ? 14 : 6, IsAbyss ? Rainbow(Time) : Col.Rgba(200, 240, 255), IsAbyss ? 320 : 180, IsAbyss ? 14 : 5, IsAbyss ? Player.Alt : 0f);
+        if (IsAbyss)
+            Blast(ToWorld(muzzle, Player.Alt), 2.4f, Rainbow(Time), 0.22f);
     }
 
     public static Color Rainbow(float t)
@@ -611,6 +625,8 @@ sealed class World
         Enemies.Clear();
         Bullets.Clear();
         Pickups.Clear();
+        Booms.Clear();
+        Particles.Clear();
         _queue.Clear();
         _spawnWait = 0;
         Player.Alive = true;
@@ -700,6 +716,7 @@ sealed class World
         Particles.Clear();
         Rings.Clear();
         Floaters.Clear();
+        Booms.Clear();
         _queue.Clear();
         _spawnWait = 0;
         _bossIndex = 0;
@@ -1088,7 +1105,7 @@ sealed class World
             if (b.Owner == BulletOwner.Player)
             {
                 Color trail = b.Tint;
-                SpawnParticle(b.Pos, -V.Norm(b.Vel) * 20f, 0.12f, b.Radius * 1.2f, trail, true);
+                SpawnParticle(b.Pos, -V.Norm(b.Vel) * 20f, 0.16f, b.Radius * 1.6f, trail, true, b.Alt);
             }
         }
     }
@@ -1267,7 +1284,7 @@ sealed class World
         e.Hp -= dmg;
         e.Flash = 0.08f;
         _audio.Hit();
-        Burst(at, e.Pos - at, 7, Col.Rgba(255, 230, 160), 200, 6);
+        Burst(at, e.Pos - at, 7, Col.Rgba(255, 230, 160), 200, 6, IsAbyss ? e.Alt : 0f);
         if (e.Hp <= 0) KillEnemy(e);
     }
 
@@ -1283,22 +1300,24 @@ sealed class World
         Kills++;
         LevelKills++;
         LevelScore += gained;
-        Float(e.Pos, $"+{gained}", boss ? Col.Rgba(255, 200, 80) : Col.Rgba(230, 230, 240));
+        Float(e.Pos, $"+{gained}", boss ? Col.Rgba(255, 200, 80) : Col.Rgba(230, 230, 240), IsAbyss ? e.Alt : 0f);
         if (IsAbyss)
         {
-            if (Combo == 2) Float(e.Pos + new Vector2(0, -28), "NICE!", Col.Rgba(120, 255, 180));
-            else if (Combo == 4) Float(e.Pos + new Vector2(0, -28), "SUPER!", Col.Rgba(255, 210, 80));
-            else if (Combo == 6) Float(e.Pos + new Vector2(0, -28), "MEGA!", Col.Rgba(255, 120, 220));
-            else if (Combo >= 8) Float(e.Pos + new Vector2(0, -28), "STAR POWER!", Col.Rgba(255, 240, 90));
+            if (Combo == 2) Float(e.Pos + new Vector2(0, -28), "NICE!", Col.Rgba(120, 255, 180), e.Alt);
+            else if (Combo == 4) Float(e.Pos + new Vector2(0, -28), "SUPER!", Col.Rgba(255, 210, 80), e.Alt);
+            else if (Combo == 6) Float(e.Pos + new Vector2(0, -28), "MEGA!", Col.Rgba(255, 120, 220), e.Alt);
+            else if (Combo >= 8) Float(e.Pos + new Vector2(0, -28), "STAR POWER!", Col.Rgba(255, 240, 90), e.Alt);
             int n = boss ? 8 : 2 + Combo / 3;
             for (int i = 0; i < n && Pickups.Count < 90; i++)
                 SpawnPickup(PickupKind.Star, e.Pos + V.FromAngle(Rng.Float(0, MathF.Tau)) * Rng.Float(12, 70));
-            Burst(e.Pos, Vector2.Zero, 18, Rainbow(Time + e.Age), 300, 8);
+            Vector3 at = ToWorld(e.Pos, e.Alt + 1.2f);
+            Blast(at, boss ? 9.5f : MathF.Max(3.8f, CombatRadius(e) * WorldScale * 2.2f), DeathColor(e.Kind), boss ? 0.85f : 0.5f);
+            Burst(e.Pos, Vector2.Zero, boss ? 42 : 28, DeathColor(e.Kind), boss ? 520 : 380, boss ? 22 : 16, e.Alt);
         }
         _audio.Explode(boss);
         Shake = MathF.Max(Shake, boss ? 14f : 4.5f);
-        Burst(e.Pos, Vector2.Zero, boss ? 56 : 22, DeathColor(e.Kind), boss ? 360 : 240, boss ? 16 : 9);
-        Ring(e.Pos, e.Radius, boss ? 520 : 180, DeathColor(e.Kind), boss ? 0.7f : 0.35f);
+        Burst(e.Pos, Vector2.Zero, boss ? 56 : 22, DeathColor(e.Kind), boss ? 360 : 240, boss ? 16 : 9, IsAbyss ? e.Alt : 0f);
+        Ring(e.Pos, e.Radius, boss ? 520 : 180, DeathColor(e.Kind), boss ? 0.7f : 0.35f, IsAbyss ? e.Alt : 0f);
 
         float drop = e.Kind switch
         {
@@ -1388,9 +1407,10 @@ sealed class World
             if (owner == BulletOwner.Player)
             {
                 life *= 1.5f;
+                radius *= 1.6f;
                 alt = Player.Alt;
                 if (Player.Aim3.LengthSquared() > 0.01f)
-                    velAlt = Vector3.Normalize(Player.Aim3).Y * vel.Length() * WorldScale;
+                    velAlt = Vector3.Normalize(Player.Aim3).Y * 22f;
             }
             else
             {
@@ -1414,17 +1434,17 @@ sealed class World
         Pickups.Add(new Pickup { Alive = true, Kind = kind, Pos = pos, Life = kind == PickupKind.Star ? 8f : 14f });
     }
 
-    void SpawnParticle(Vector2 pos, Vector2 vel, float life, float size, Color color, bool add)
+    void SpawnParticle(Vector2 pos, Vector2 vel, float life, float size, Color color, bool add, float alt = 0f, float velAlt = 0f)
     {
-        if (Particles.Count > 520) return;
+        if (Particles.Count > 700) return;
         Particles.Add(new Particle
         {
-            Alive = true, Pos = pos, Vel = vel, Life = life, MaxLife = life,
+            Alive = true, Pos = pos, Vel = vel, Alt = alt, VelAlt = velAlt, Life = life, MaxLife = life,
             Size = size, Drag = 2.4f, Color = color, Additive = add
         });
     }
 
-    void Burst(Vector2 pos, Vector2 toward, int n, Color c, float speed, float size)
+    void Burst(Vector2 pos, Vector2 toward, int n, Color c, float speed, float size, float alt = 0f)
     {
         Vector2 baseDir = toward.LengthSquared() > 1 ? V.Norm(toward) : Vector2.Zero;
         for (int i = 0; i < n; i++)
@@ -1432,18 +1452,26 @@ sealed class World
             Vector2 d = baseDir.LengthSquared() > 0
                 ? V.Norm(baseDir + V.FromAngle(Rng.Float(0, MathF.Tau)) * 0.8f)
                 : V.FromAngle(Rng.Float(0, MathF.Tau));
-            SpawnParticle(pos, d * Rng.Float(speed * 0.3f, speed), Rng.Float(0.2f, 0.55f), Rng.Float(size * 0.4f, size), c, true);
+            SpawnParticle(pos, d * Rng.Float(speed * 0.3f, speed), Rng.Float(0.25f, 0.7f), Rng.Float(size * 0.4f, size), c, true,
+                alt, Rng.Float(-12f, 28f));
         }
     }
 
-    void Ring(Vector2 pos, float r, float grow, Color c, float life)
+    void Ring(Vector2 pos, float r, float grow, Color c, float life, float alt = 0f)
     {
-        Rings.Add(new RingFx { Alive = true, Pos = pos, Radius = r, Grow = grow, Color = c, Life = life, MaxLife = life });
+        Rings.Add(new RingFx { Alive = true, Pos = pos, Alt = alt, Radius = r, Grow = grow, Color = c, Life = life, MaxLife = life });
     }
 
-    void Float(Vector2 pos, string text, Color c)
+    void Float(Vector2 pos, string text, Color c, float alt = 0f)
     {
-        Floaters.Add(new Floater { Alive = true, Pos = pos + new Vector2(Rng.Float(-8, 8), -8), Text = text, Life = 0.9f, MaxLife = 0.9f, Color = c });
+        Floaters.Add(new Floater { Alive = true, Pos = pos + new Vector2(Rng.Float(-8, 8), -8), Alt = alt, Text = text, Life = 1.15f, MaxLife = 1.15f, Color = c });
+    }
+
+    public void Blast(Vector3 pos, float size, Color c, float life)
+    {
+        if (Booms.Count > 40) Booms.RemoveAt(0);
+        Booms.Add(new Boom { Alive = true, Pos = pos, Size = size, Color = c, Life = life, MaxLife = life });
+        Ring(FromWorld(pos), 12, 420, c, life, pos.Y);
     }
 
     void UpdateFx(float dt)
@@ -1455,6 +1483,8 @@ sealed class World
             if (p.Life <= 0) { Particles.RemoveAt(i); continue; }
             p.Vel *= MathF.Max(0, 1f - p.Drag * dt);
             p.Pos += p.Vel * dt;
+            p.Alt += p.VelAlt * dt;
+            p.VelAlt -= 18f * dt;
         }
         for (int i = Rings.Count - 1; i >= 0; i--)
         {
@@ -1469,6 +1499,13 @@ sealed class World
             f.Life -= dt;
             if (f.Life <= 0) { Floaters.RemoveAt(i); continue; }
             f.Pos.Y -= 28f * dt;
+            f.Alt += 6f * dt;
+        }
+        for (int i = Booms.Count - 1; i >= 0; i--)
+        {
+            Boom b = Booms[i];
+            b.Life -= dt;
+            if (b.Life <= 0) Booms.RemoveAt(i);
         }
     }
 

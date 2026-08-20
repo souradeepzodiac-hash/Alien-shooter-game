@@ -429,11 +429,18 @@ static class Renderer
         {
             if (!b.Alive) continue;
             Vector3 pos = w.ToWorld(b.Pos, b.Alt);
-            float br = MathF.Max(0.22f, b.Radius * World.WorldScale * 0.9f);
-            Raylib.DrawSphere(pos, br * 1.45f, Col.Fade(b.Tint, 0.35f));
+            float br = b.Owner == BulletOwner.Player ? 1.65f : 1.15f;
+            if (b.Style == WeaponKind.Nova) br = 2.3f;
+            if (b.Style == WeaponKind.Rail) br = 1.35f;
+            Vector3 velW = new(b.Vel.X * World.WorldScale, b.VelAlt, b.Vel.Y * World.WorldScale);
+            if (velW.LengthSquared() > 0.01f)
+            {
+                Vector3 back = pos - Vector3.Normalize(velW) * br * 4.2f;
+                Raylib.DrawCylinderEx(back, pos, br * 0.22f, br * 0.85f, 7, b.Tint);
+            }
+            Raylib.DrawSphere(pos, br * 1.55f, Col.Fade(b.Tint, 0.4f));
             Raylib.DrawSphere(pos, br, b.Tint);
-            if (b.Owner == BulletOwner.Player)
-                Raylib.DrawSphere(pos, br * 0.4f, Color.White);
+            Raylib.DrawSphere(pos, br * 0.42f, Color.White);
         }
 
         foreach (Enemy e in w.Enemies)
@@ -449,28 +456,40 @@ static class Renderer
         {
             if (!p.Alive) continue;
             float t = Math.Clamp(p.Life / p.MaxLife, 0f, 1f);
-            Vector3 pos = w.ToWorld(p.Pos) + new Vector3(0, 0.6f, 0);
-            Raylib.DrawSphere(pos, MathF.Max(0.06f, p.Size * World.WorldScale * 0.35f * t), Col.Fade(p.Color, t));
+            Vector3 pos = w.ToWorld(p.Pos, p.Alt);
+            Raylib.DrawSphere(pos, MathF.Max(0.28f, p.Size * World.WorldScale * 1.15f * t), Col.Fade(p.Color, t));
         }
 
         foreach (RingFx r in w.Rings)
         {
             if (!r.Alive) continue;
             float t = Math.Clamp(r.Life / r.MaxLife, 0f, 1f);
-            Raylib.DrawCircle3D(w.ToWorld(r.Pos) + new Vector3(0, 0.05f, 0), r.Radius * World.WorldScale, Vector3.UnitX, 90, Col.Fade(r.Color, t));
+            Raylib.DrawCircle3D(w.ToWorld(r.Pos, r.Alt), MathF.Max(1.2f, r.Radius * World.WorldScale), Vector3.UnitX, 90, Col.Fade(r.Color, t));
+            Raylib.DrawCircle3D(w.ToWorld(r.Pos, r.Alt), MathF.Max(1.2f, r.Radius * World.WorldScale), Vector3.UnitZ, 90, Col.Fade(r.Color, t * 0.7f));
         }
+
+        DrawBooms(w);
 
         Raylib.EndMode3D();
 
-        if (w.Player.Alive && c.Player.Id != 0)
+        foreach (Bullet b in w.Bullets)
         {
-            Vector2 sp = Raylib.GetWorldToScreen(w.ToWorld(w.Player.Pos, w.Player.Alt), w.Cam);
-            Color pt = w.Player.HurtFlash > 0 ? Col.Rgba(255, 140, 140) : Color.White;
-            if (w.Player.IFrames > 0 && ((int)(w.Time * 20) % 2 == 0) && w.Player.HurtFlash <= 0)
-                pt = Col.Fade(Color.White, 0.5f);
-            float rot = w.Player.Angle * Raylib.RAD2DEG + 90f;
-            DrawGlow(c, sp, 42, Col.Rgba(80, 230, 255), 0.4f);
-            DrawSprite(c.Player, sp, 78, rot, pt);
+            if (!b.Alive || b.Owner != BulletOwner.Player) continue;
+            Vector2 sp = Raylib.GetWorldToScreen(w.ToWorld(b.Pos, b.Alt), w.Cam);
+            if (sp.X < -40 || sp.Y < -40 || sp.X > sw + 40 || sp.Y > sh + 40) continue;
+            Raylib.DrawCircleV(sp, 18, Col.Fade(b.Tint, 0.45f));
+            Raylib.DrawCircleV(sp, 9, b.Tint);
+            Raylib.DrawCircleV(sp, 3, Color.White);
+        }
+
+        foreach (Boom b in w.Booms)
+        {
+            if (!b.Alive) continue;
+            Vector2 sp = Raylib.GetWorldToScreen(b.Pos, w.Cam);
+            float u = 1f - Math.Clamp(b.Life / Math.Max(0.01f, b.MaxLife), 0f, 1f);
+            float rad = 28f + 90f * u;
+            Raylib.DrawCircleV(sp, rad, Col.Fade(Col.Rgba(255, 120, 40), 0.45f * (1f - u)));
+            Raylib.DrawCircleV(sp, rad * 0.45f, Col.Fade(Col.Rgba(255, 240, 160), 0.7f * (1f - u)));
         }
 
         foreach (Enemy e in w.Enemies)
@@ -485,7 +504,7 @@ static class Renderer
         {
             if (!f.Alive) continue;
             float t = Math.Clamp(f.Life / f.MaxLife, 0f, 1f);
-            Vector2 scr = Raylib.GetWorldToScreen(w.ToWorld(f.Pos) + new Vector3(0, 2.2f, 0), w.Cam);
+            Vector2 scr = Raylib.GetWorldToScreen(w.ToWorld(f.Pos, f.Alt) + new Vector3(0, 2.2f, 0), w.Cam);
             DrawTextCentered(c.Font, f.Text, scr, 22, Col.Fade(f.Color, t));
         }
 
@@ -600,7 +619,8 @@ static class Renderer
         Raylib.DrawCube(new Vector3(0f, 0f, -0.45f), 0.5f, 0.28f, 1.7f, Col.Rgba(255, 240, 250));
         Raylib.DrawCube(new Vector3(0.7f, 0f, 0.1f), 0.9f, 0.08f, 0.35f, World.Rainbow(w.Time * 0.7f));
         Raylib.DrawCube(new Vector3(-0.7f, 0f, 0.1f), 0.9f, 0.08f, 0.35f, World.Rainbow(w.Time * 0.7f + 0.3f));
-        Raylib.DrawSphere(new Vector3(0f, 0.05f, 0.55f), 0.2f, World.Rainbow(w.Time * 1.4f));
+        float pulse = 0.18f + 0.12f * (0.5f + 0.5f * MathF.Sin(w.Time * 22f));
+        Raylib.DrawSphere(new Vector3(0f, 0.05f, 0.55f), pulse, World.Rainbow(w.Time * 1.4f));
         Rlgl.PopMatrix();
         if (w.Player.Shield > 0)
             Raylib.DrawSphereWires(feet + new Vector3(0, 1.1f, 0), 1.5f, 8, 8, Col.Rgba(40, 230, 210, 180));
@@ -611,7 +631,7 @@ static class Renderer
     {
         Texture2D tex = c.TexFor(e.Kind);
         Vector3 feet = w.ToWorld(e.Pos, e.Alt);
-        Raylib.DrawCircle3D(feet + new Vector3(0, 0.03f, 0), e.Radius * World.WorldScale * 1.1f, Vector3.UnitX, 90, Col.Rgba(0, 0, 0, 110));
+        Raylib.DrawCircle3D(new Vector3(feet.X, 0.04f, feet.Z), e.Radius * World.WorldScale * 1.1f, Vector3.UnitX, 90, Col.Rgba(0, 0, 0, 110));
         if (tex.Id == 0)
             return;
 
@@ -624,10 +644,37 @@ static class Renderer
             EnemyKind.Prism => 5.0f,
             _ => 4.6f,
         };
-        float bob = MathF.Sin(e.Age * 3.4f) * (e.Kind == EnemyKind.Wraith ? 0.45f : 0.22f);
+        float bob = MathF.Sin(e.Age * 6.5f) * (e.Kind == EnemyKind.Wraith ? 0.55f : 0.32f);
+        float flap = 1f + 0.14f * MathF.Sin(e.Age * 11f);
+        float spin = e.Kind == EnemyKind.Wraith ? e.Age * 70f : e.Age * 18f;
         Color tint = e.Flash > 0 ? Col.Rgba(255, 240, 200) : Color.White;
         if (e.SpawnIn > 0) tint = Col.Fade(Color.White, 0.4f + 0.6f * (1f - Math.Clamp(e.SpawnIn, 0, 1)));
         Vector3 center = feet + new Vector3(0, size * 0.48f + bob, 0);
-        Raylib.DrawBillboard(w.Cam, tex, center, size, tint);
+        if (e.Flash > 0)
+            Raylib.DrawSphere(center, size * 0.7f, Col.Fade(Color.White, 0.35f));
+        Raylib.DrawBillboard(w.Cam, tex, center, size * flap, tint);
+        Rlgl.PushMatrix();
+        Rlgl.Translatef(center.X, center.Y - size * 0.15f, center.Z);
+        Rlgl.Rotatef(spin, 0, 1, 0);
+        Raylib.DrawCube(Vector3.Zero, size * 0.22f, size * 0.12f, size * 0.22f, Col.Fade(DeathTint(e.Kind), 0.55f));
+        Rlgl.PopMatrix();
+    }
+
+    static void DrawBooms(World w)
+    {
+        foreach (Boom b in w.Booms)
+        {
+            if (!b.Alive) continue;
+            float u = 1f - Math.Clamp(b.Life / Math.Max(0.01f, b.MaxLife), 0f, 1f);
+            float fade = 1f - u;
+            float r = b.Size * (0.35f + u * 1.7f);
+            Raylib.DrawSphere(b.Pos, r * 1.35f, Col.Fade(Col.Rgba(255, 80, 30), 0.4f * fade));
+            Raylib.DrawSphere(b.Pos, r, Col.Fade(b.Color, 0.85f * fade));
+            Raylib.DrawSphere(b.Pos, r * 0.45f, Col.Fade(Col.Rgba(255, 250, 180), fade));
+            if (u < 0.22f)
+                Raylib.DrawSphere(b.Pos, r * 0.7f, Col.Fade(Color.White, 1f - u / 0.22f));
+            Raylib.DrawCircle3D(b.Pos, r * 1.1f, Vector3.UnitX, 90, Col.Fade(Col.Rgba(255, 180, 60), fade));
+            Raylib.DrawCircle3D(b.Pos, r * 1.1f, Vector3.UnitY, 0, Col.Fade(Col.Rgba(255, 140, 40), fade * 0.8f));
+        }
     }
 }
