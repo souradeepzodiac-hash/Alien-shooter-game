@@ -213,7 +213,7 @@ static class Renderer
         if (w.Player.Overdrive > 0) wpn += $"  OD {w.Player.Overdrive:0.0}";
         DrawTextCentered(c.Font, wpn, new Vector2(sw * 0.5f, Raylib.GetScreenHeight() - 38), 18, Col.Rgba(140, 230, 255));
         if (w.IsAbyss)
-            DrawTextCentered(c.Font, "MOUSE LOOK   WASD FLY   Q/E UP-DOWN   LMB FIRE   SHIFT DASH",
+            DrawTextCentered(c.Font, "MOUSE ROTATES PLANE   ARROWS/WASD MOVE   Q/E HEIGHT   LMB FIRE",
                 new Vector2(sw * 0.5f, Raylib.GetScreenHeight() - 16), 12, Col.Rgba(180, 160, 220, 200));
 
         // weapon slots
@@ -247,9 +247,7 @@ static class Renderer
             DrawTextCentered(c.Font, w.Banner, new Vector2(sw * 0.5f, 110), 42, Col.Fade(Color.White, a));
         }
 
-        DrawCrosshair(w.IsAbyss
-            ? new Vector2(sw * 0.5f, Raylib.GetScreenHeight() * 0.5f)
-            : Raylib.GetMousePosition());
+        DrawCrosshair(Raylib.GetMousePosition());
     }
 
     static void DrawCrosshair(Vector2 m)
@@ -425,6 +423,17 @@ static class Renderer
 
         Raylib.EndMode3D();
 
+        if (w.Player.Alive && c.Player.Id != 0)
+        {
+            Vector2 sp = Raylib.GetWorldToScreen(w.ToWorld(w.Player.Pos, w.Player.Alt), w.Cam);
+            Color pt = w.Player.HurtFlash > 0 ? Col.Rgba(255, 140, 140) : Color.White;
+            if (w.Player.IFrames > 0 && ((int)(w.Time * 20) % 2 == 0) && w.Player.HurtFlash <= 0)
+                pt = Col.Fade(Color.White, 0.5f);
+            float rot = w.Player.Angle * Raylib.RAD2DEG + 90f;
+            DrawGlow(c, sp, 42, Col.Rgba(80, 230, 255), 0.4f);
+            DrawSprite(c.Player, sp, 78, rot, pt);
+        }
+
         foreach (Enemy e in w.Enemies)
         {
             if (!e.Alive || e.Kind is EnemyKind.Hydra or EnemyKind.Boss) continue;
@@ -447,7 +456,6 @@ static class Renderer
         Raylib.DrawRectangleGradientV(0, sh2 - 50, sw2, 50, Col.Rgba(0, 0, 0, 0), Col.Rgba(0, 0, 0, 90));
         if (w.Player.HurtFlash > 0)
             Raylib.DrawRectangle(0, 0, sw2, sh2, Col.Fade(Col.Rgba(180, 20, 30), w.Player.HurtFlash * 1.6f));
-        DrawCrosshair(new Vector2(sw2 * 0.5f, sh2 * 0.5f));
     }
 
     static void DrawOpenSpace(World w)

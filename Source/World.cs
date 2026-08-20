@@ -280,21 +280,11 @@ sealed class World
 
     void PilotAbyss(float dt, bool dash)
     {
-        Vector2 md = Raylib.GetMouseDelta();
-        md.X = Math.Clamp(md.X, -90f, 90f);
-        md.Y = Math.Clamp(md.Y, -90f, 90f);
-        const float sens = 0.0026f;
-        Player.Yaw += md.X * sens;
-        Player.Pitch = Math.Clamp(Player.Pitch - md.Y * sens, -1.52f, 1.52f);
-        Player.Aim3 = LookDir();
-        Vector2 flat = new(Player.Aim3.X, Player.Aim3.Z);
-        if (flat.LengthSquared() > 0.0001f) Player.Angle = V.Ang(flat);
+        if (Cam.FovY < 1f) RefreshCamera();
+        AimPlaneAtMouse();
 
-        Vector3 fwd = Player.Aim3;
+        Vector3 fwd = new(MathF.Sin(Player.Yaw), 0f, -MathF.Cos(Player.Yaw));
         Vector3 right = new(MathF.Cos(Player.Yaw), 0f, MathF.Sin(Player.Yaw));
-        if (right.LengthSquared() < 0.0001f) right = Vector3.UnitX;
-        else right = Vector3.Normalize(right);
-
         Vector3 wish = Vector3.Zero;
         if (Raylib.IsKeyDown(KeyboardKey.W) || Raylib.IsKeyDown(KeyboardKey.Up)) wish += fwd;
         if (Raylib.IsKeyDown(KeyboardKey.S) || Raylib.IsKeyDown(KeyboardKey.Down)) wish -= fwd;
@@ -326,6 +316,44 @@ sealed class World
         Player.Alt = Math.Clamp(Player.Alt, 0.35f, 260f);
         Player.Vel = new Vector2(Player.Vel3.X / WorldScale, Player.Vel3.Z / WorldScale);
         RefreshCamera();
+    }
+
+    void AimPlaneAtMouse()
+    {
+        Vector2 mouse = Raylib.GetMousePosition();
+        Vector3 from = ToWorld(Player.Pos, Player.Alt);
+        Ray ray = Raylib.GetScreenToWorldRay(mouse, Cam);
+        bool aimed = false;
+        if (MathF.Abs(ray.Direction.Y) > 0.0008f)
+        {
+            float t = (Player.Alt - ray.Position.Y) / ray.Direction.Y;
+            if (t > 0.08f)
+            {
+                Vector3 hit = ray.Position + ray.Direction * t;
+                Vector3 d = hit - from;
+                if (new Vector2(d.X, d.Z).LengthSquared() > 0.0008f)
+                {
+                    Player.Yaw = MathF.Atan2(d.X, -d.Z);
+                    Player.Angle = V.Ang(new Vector2(d.X, d.Z));
+                    aimed = true;
+                }
+            }
+        }
+        if (!aimed)
+        {
+            Vector3 flat = new(ray.Direction.X, 0f, ray.Direction.Z);
+            if (flat.LengthSquared() > 1e-8f)
+            {
+                flat = Vector3.Normalize(flat);
+                Player.Yaw = MathF.Atan2(flat.X, -flat.Z);
+                Player.Angle = V.Ang(new Vector2(flat.X, flat.Z));
+            }
+        }
+
+        float midY = Raylib.GetScreenHeight() * 0.52f;
+        float span = MathF.Max(90f, Raylib.GetScreenHeight() * 0.32f);
+        Player.Pitch = Math.Clamp((midY - mouse.Y) / span * 0.9f, -0.9f, 0.9f);
+        Player.Aim3 = LookDir();
     }
 
     void TrySetWeapon(WeaponKind w)
@@ -732,14 +760,14 @@ sealed class World
     public void RefreshCamera()
     {
         Vector3 p = ToWorld(Player.Pos, Player.Alt);
-        Vector3 fwd = LookDir();
-        Player.Aim3 = fwd;
+        Vector3 fwd = new(MathF.Sin(Player.Yaw), 0f, -MathF.Cos(Player.Yaw));
         Vector3 shake = new(ShakeOff.X * 0.02f, 0f, ShakeOff.Y * 0.02f);
-        Cam.Position = p - fwd * 15.5f + new Vector3(0f, 3.2f, 0f) + shake;
-        Cam.Target = p + fwd * 5.5f + shake;
+        Cam.Position = p - fwd * 16.5f + new Vector3(0f, 9.5f - Player.Pitch * 5.5f, 0f) + shake;
+        Cam.Target = p + fwd * 3.5f + new Vector3(0f, 0.6f + Player.Pitch * 5f, 0f) + shake;
         Cam.Up = Vector3.UnitY;
-        Cam.FovY = 60f;
+        Cam.FovY = 58f;
         Cam.Projection = CameraProjection.Perspective;
+        Player.Aim3 = LookDir();
     }
 
     public float CombatRadius(Enemy e) => IsAbyss ? MathF.Max(e.Radius * 4f, 64f) : e.Radius;

@@ -33,6 +33,7 @@ static class GameApp
         Raylib.SetTargetFPS(smoke ? 60 : 60);
         Raylib.SetExitKey(KeyboardKey.Null);
         Raylib.InitAudioDevice();
+        Raylib.EnableCursor();
         Raylib.HideCursor();
         Raylib.SetMasterVolume(1f);
 
@@ -91,14 +92,6 @@ static class GameApp
             if (Raylib.IsKeyPressed(KeyboardKey.M))
                 audio.ToggleMute();
             if (menuLock > 0) menuLock -= dt;
-
-            bool mouseLook = screen == Screen.Playing && world.IsAbyss && !smoke;
-            if (mouseLook) Raylib.DisableCursor();
-            else
-            {
-                Raylib.EnableCursor();
-                if (screen == Screen.Playing) Raylib.HideCursor();
-            }
 
             switch (screen)
             {

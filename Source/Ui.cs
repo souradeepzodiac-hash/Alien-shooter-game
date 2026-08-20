@@ -104,7 +104,7 @@ static class Screens
             "Pilot the interceptor. Survive the rift swarms.",
             "WASD or arrows move. Mouse aims. Left click or Space fires.",
             "Right click or Shift dashes — brief invulnerability, short cooldown.",
-            "In the Abyss: mouse looks up/down/side. WASD flies that way. Q/E climb. Aliens hunt you anywhere.",
+            "In the Abyss: mouse rotates the plane. Arrows/WASD move it. Q/E height. Camera follows the plane.",
             "Keys 1-4 and mouse wheel switch unlocked weapons.",
             "PULSE is rapid. SPREAD covers arcs. RAIL pierces. NOVA detonates.",
             "Weapon crates upgrade the equipped gun, then unlock the next.",
