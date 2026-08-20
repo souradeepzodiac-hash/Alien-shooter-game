@@ -494,10 +494,36 @@ static class Renderer
 
         foreach (Enemy e in w.Enemies)
         {
-            if (!e.Alive || e.Kind is EnemyKind.Hydra or EnemyKind.Boss) continue;
-            if (e.Hp >= e.MaxHp) continue;
-            Vector2 sp = Raylib.GetWorldToScreen(w.ToWorld(e.Pos, e.Alt) + new Vector3(0, 3.2f, 0), w.Cam);
-            DrawTinyBar(sp, e.Hp / e.MaxHp, 36, Col.Rgba(255, 80, 70));
+            if (!e.Alive) continue;
+            Vector2 sp = Raylib.GetWorldToScreen(w.ToWorld(e.Pos, e.Alt) + new Vector3(0, 1.6f, 0), w.Cam);
+            if (sp.X < -80 || sp.Y < -80 || sp.X > sw + 80 || sp.Y > sh + 80) continue;
+            float size = e.Kind switch
+            {
+                EnemyKind.Hydra => 160f,
+                EnemyKind.Spire => 96f,
+                EnemyKind.Hunter => 88f,
+                EnemyKind.Wraith => 90f,
+                EnemyKind.Prism => 84f,
+                _ => 80f,
+            };
+            float flap = 1f + 0.08f * MathF.Sin(e.Age * 11f);
+            Color tint = e.Flash > 0 ? Col.Rgba(255, 240, 200) : Color.White;
+            if (e.SpawnIn > 0) tint = Col.Fade(Color.White, 0.45f + 0.55f * (1f - Math.Clamp(e.SpawnIn, 0, 1)));
+            DrawGlow(c, sp, size * 0.55f, DeathTint(e.Kind), 0.45f);
+            DrawSprite(c.TexFor(e.Kind), sp, size * flap, 0f, tint);
+            if (e.Kind is not (EnemyKind.Hydra or EnemyKind.Boss) && e.Hp < e.MaxHp)
+                DrawTinyBar(sp + new Vector2(0, size * 0.42f), e.Hp / e.MaxHp, 48, Col.Rgba(255, 80, 70));
+        }
+
+        if (w.Player.Alive && c.Player.Id != 0)
+        {
+            Vector2 sp = Raylib.GetWorldToScreen(w.ToWorld(w.Player.Pos, w.Player.Alt), w.Cam);
+            Color pt = w.Player.HurtFlash > 0 ? Col.Rgba(255, 140, 140) : Color.White;
+            if (w.Player.IFrames > 0 && ((int)(w.Time * 20) % 2 == 0) && w.Player.HurtFlash <= 0)
+                pt = Col.Fade(Color.White, 0.5f);
+            float rot = w.Player.Angle * Raylib.RAD2DEG + 90f;
+            DrawGlow(c, sp, 52, Col.Rgba(80, 230, 255), 0.5f);
+            DrawSprite(c.Player, sp, 96, rot, pt);
         }
 
         foreach (Floater f in w.Floaters)
@@ -626,11 +652,10 @@ static class Renderer
         if (MathF.Abs(feet.X) < 52f && MathF.Abs(feet.Z) < 42f)
             Raylib.DrawCircle3D(new Vector3(feet.X, 0.04f, feet.Z), 1.6f, Vector3.UnitX, 90, Col.Rgba(0, 0, 0, 80));
         float pulse = 0.35f + 0.18f * (0.5f + 0.5f * MathF.Sin(w.Time * 22f));
-        Raylib.DrawSphere(feet + new Vector3(0f, 0.2f, 1.1f), pulse, World.Rainbow(w.Time * 1.4f));
-        if (c.Player.Id != 0)
-            Raylib.DrawBillboard(w.Cam, c.Player, feet + new Vector3(0, 1.15f, 0), 4.4f, Color.White);
+        Raylib.DrawSphere(feet + new Vector3(0f, 0.15f, 0.2f), pulse, World.Rainbow(w.Time * 1.4f));
         if (w.Player.Shield > 0)
             Raylib.DrawSphereWires(feet + new Vector3(0, 1.1f, 0), 2.2f, 8, 8, Col.Rgba(40, 230, 210, 180));
+        _ = c;
     }
 
     static void DrawAlien3D(World w, ContentPack c, Enemy e)

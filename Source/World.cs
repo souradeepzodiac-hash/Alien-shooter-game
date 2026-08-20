@@ -332,19 +332,19 @@ sealed class World
 
     void AimPlaneAtMouse()
     {
-        // Face the cursor on screen. Camera must NOT depend on this heading,
-        // or the plane spins forever.
+        // Same as Rift: nose points at the cursor. Camera stays put so it does not spin.
         Vector2 mouse = Raylib.GetMousePosition();
         Vector2 ship = Raylib.GetWorldToScreen(ToWorld(Player.Pos, Player.Alt), Cam);
         Vector2 d = mouse - ship;
-        if (d.LengthSquared() > 36f)
+        if (d.LengthSquared() > 8f)
         {
-            Player.Yaw = MathF.Atan2(d.X, -d.Y);
             Player.Angle = MathF.Atan2(d.Y, d.X);
+            Player.Yaw = MathF.Atan2(d.X, -d.Y);
         }
-        float span = MathF.Max(80f, Raylib.GetScreenHeight() * 0.30f);
-        Player.Pitch = Math.Clamp((ship.Y - mouse.Y) / span * 0.7f, -0.75f, 0.75f);
-        Player.Aim3 = LookDir();
+        Player.Pitch = 0f;
+        float cs = MathF.Cos(Player.Yaw);
+        float sn = MathF.Sin(Player.Yaw);
+        Player.Aim3 = new Vector3(sn, 0f, -cs);
     }
 
     void TrySetWeapon(WeaponKind w)
@@ -369,15 +369,13 @@ sealed class World
         float od = Player.Overdrive > 0 ? 0.62f : 1f;
         Vector2 dir = V.FromAngle(Player.Angle);
         float reach = IsAbyss ? 1.85f : 1f;
-        Vector2 muzzle = Player.Pos + dir * (IsAbyss ? 80f : 28f);
-        if (IsAbyss && Player.Aim3.LengthSquared() > 0.01f)
+        if (IsAbyss)
         {
-            Vector3 a = Vector3.Normalize(Player.Aim3);
-            dir = new Vector2(a.X, a.Z);
+            dir = new Vector2(MathF.Sin(Player.Yaw), -MathF.Cos(Player.Yaw));
             if (dir.LengthSquared() < 0.0001f) dir = V.FromAngle(Player.Angle);
             else dir = V.Norm(dir);
-            muzzle = Player.Pos + dir * 80f;
         }
+        Vector2 muzzle = Player.Pos + dir * (IsAbyss ? 80f : 28f);
 
         switch (Player.Weapon)
         {
@@ -398,7 +396,8 @@ sealed class World
                 for (int i = 0; i < shots; i++)
                 {
                     float t = shots == 1 ? 0 : (i / (float)(shots - 1) - 0.5f);
-                    Vector2 d = V.FromAngle(Player.Angle + t * spread);
+                    float ang = V.Ang(dir) + t * spread;
+                    Vector2 d = V.FromAngle(ang);
                     SpawnBullet(BulletOwner.Player, muzzle, d * 820f * reach, 4.5f, 7 + lv, 0.9f * reach, 0, 0,
                         IsAbyss ? Rainbow(Time * 0.8f + i * 0.1f) : Col.Rgba(190, 120, 255), WeaponKind.Spread);
                 }
@@ -772,10 +771,10 @@ sealed class World
     {
         Vector3 p = ToWorld(Player.Pos, Player.Alt);
         Vector3 shake = new(ShakeOff.X * 0.02f, 0f, ShakeOff.Y * 0.02f);
-        Cam.Target = p + new Vector3(0f, 0.8f, 0f) + shake;
-        Cam.Position = p + new Vector3(0f, 14f, 24f) + shake;
+        Cam.Target = p + new Vector3(0f, 0.6f, 0f) + shake;
+        Cam.Position = p + new Vector3(0f, 18f, 32f) + shake;
         Cam.Up = Vector3.UnitY;
-        Cam.FovY = 55f;
+        Cam.FovY = 58f;
         Cam.Projection = CameraProjection.Perspective;
     }
 
@@ -787,7 +786,7 @@ sealed class World
         if (IsAbyss)
         {
             float ang = Rng.Float(0, MathF.Tau);
-            return Player.Pos + V.FromAngle(ang) * Rng.Float(420f, 720f);
+            return Player.Pos + V.FromAngle(ang) * Rng.Float(240f, 420f);
         }
         int side = Rng.Int(0, 4);
         float m = 36f;
@@ -1409,8 +1408,7 @@ sealed class World
                 life *= 1.5f;
                 radius *= 1.6f;
                 alt = Player.Alt;
-                if (Player.Aim3.LengthSquared() > 0.01f)
-                    velAlt = Vector3.Normalize(Player.Aim3).Y * 22f;
+                velAlt = 0f;
             }
             else
             {
