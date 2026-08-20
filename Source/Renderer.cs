@@ -149,7 +149,7 @@ static class Renderer
         Raylib.BeginBlendMode(BlendMode.Additive);
         foreach (Particle p in w.Particles)
         {
-            if (!p.Alive) continue;
+            if (!p.Alive || !p.Additive) continue;
             float t = Math.Clamp(p.Life / p.MaxLife, 0f, 1f);
             float sz = p.Size * (0.4f + 0.6f * t);
             Color col = Col.Fade(p.Color, t);
@@ -159,6 +159,14 @@ static class Renderer
                 Raylib.DrawCircleV(p.Pos + shake, sz, col);
         }
         Raylib.EndBlendMode();
+        foreach (Particle p in w.Particles)
+        {
+            if (!p.Alive || p.Additive) continue;
+            float t = Math.Clamp(p.Life / p.MaxLife, 0f, 1f);
+            float sz = p.Size * (0.7f + 0.9f * (1f - t));
+            Raylib.DrawCircleV(p.Pos + shake, sz, Col.Fade(p.Color, t * 0.75f));
+            Raylib.DrawCircleV(p.Pos + shake, sz * 0.55f, Col.Fade(Col.Rgba(220, 220, 220), t * 0.4f));
+        }
     }
 
     static void DrawRings(World w, Vector2 shake)
@@ -457,7 +465,13 @@ static class Renderer
             if (!p.Alive) continue;
             float t = Math.Clamp(p.Life / p.MaxLife, 0f, 1f);
             Vector3 pos = w.ToWorld(p.Pos, p.Alt);
-            Raylib.DrawSphere(pos, MathF.Max(0.28f, p.Size * World.WorldScale * 1.15f * t), Col.Fade(p.Color, t));
+            if (!p.Additive)
+            {
+                float grow = 1.2f + 1.1f * (1f - t);
+                Raylib.DrawSphere(pos, MathF.Max(1.3f, p.Size * 0.085f * grow), Col.Fade(p.Color, t * 0.7f));
+            }
+            else
+                Raylib.DrawSphere(pos, MathF.Max(0.28f, p.Size * World.WorldScale * 1.15f * t), Col.Fade(p.Color, t));
         }
 
         foreach (RingFx r in w.Rings)
@@ -471,6 +485,15 @@ static class Renderer
         DrawBooms(w);
 
         Raylib.EndMode3D();
+
+        foreach (Particle p in w.Particles)
+        {
+            if (!p.Alive || p.Additive) continue;
+            float t = Math.Clamp(p.Life / p.MaxLife, 0f, 1f);
+            Vector2 sp = Raylib.GetWorldToScreen(w.ToWorld(p.Pos, p.Alt), w.Cam);
+            float rad = 22f + 48f * (1f - t);
+            Raylib.DrawCircleV(sp, rad, Col.Fade(p.Color, t * 0.55f));
+        }
 
         foreach (Bullet b in w.Bullets)
         {

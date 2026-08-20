@@ -512,17 +512,29 @@ sealed class World
                 Banner = "BIG ALIEN BOSS!";
                 BannerT = 2.6f;
                 _audio.Boss();
+                for (int i = 1; i < _queue.Count; i++)
+                {
+                    int j = Rng.Int(1, _queue.Count);
+                    (_queue[i], _queue[j]) = (_queue[j], _queue[i]);
+                }
                 return;
             }
-            if (wave == 1) Add(EnemyKind.Prism, 8, 0.26f);
-            else if (wave == 2) { Add(EnemyKind.Prism, 6, 0.2f); Add(EnemyKind.Hunter, 3, 0.4f); }
-            else if (wave == 3) { Add(EnemyKind.Wraith, 10, 0.12f); Add(EnemyKind.Spire, 2, 0.55f); }
+            if (wave == 1) Add(EnemyKind.Prism, 8, 0.32f);
+            else if (wave == 2) { Add(EnemyKind.Prism, 6, 0.28f); Add(EnemyKind.Hunter, 3, 0.45f); }
+            else if (wave == 3) { Add(EnemyKind.Wraith, 10, 0.22f); Add(EnemyKind.Spire, 2, 0.55f); }
             else
             {
-                Add(EnemyKind.Prism, 5 + wave, 0.15f);
-                Add(EnemyKind.Hunter, 2 + wave / 3, 0.28f);
-                Add(EnemyKind.Wraith, 4 + wave / 2, 0.1f);
+                Add(EnemyKind.Prism, 5 + wave, 0.22f);
+                Add(EnemyKind.Hunter, 2 + wave / 3, 0.34f);
+                Add(EnemyKind.Wraith, 4 + wave / 2, 0.2f);
                 Add(EnemyKind.Spire, Math.Max(1, wave / 3), 0.5f);
+            }
+            for (int i = 0; i < _queue.Count; i++)
+            {
+                int j = Rng.Int(0, _queue.Count);
+                (_queue[i], _queue[j]) = (_queue[j], _queue[i]);
+                var (k, d) = _queue[i];
+                _queue[i] = (k, d * Rng.Float(0.4f, 1.85f));
             }
             Banner = wave == 1 ? "CATCH THE STARS!" : $"LEVEL {wave}  GO GO GO!";
             BannerT = 2.1f;
@@ -786,7 +798,7 @@ sealed class World
         if (IsAbyss)
         {
             float ang = Rng.Float(0, MathF.Tau);
-            return Player.Pos + V.FromAngle(ang) * Rng.Float(240f, 420f);
+            return Player.Pos + V.FromAngle(ang) * Rng.Float(200f, 520f);
         }
         int side = Rng.Int(0, 4);
         float m = 36f;
@@ -826,7 +838,7 @@ sealed class World
             case EnemyKind.Hydra:
                 e.Radius = 68; e.MaxHp = 1100 + _bossIndex * 380; e.Contact = 30; e.Score = 3200 + _bossIndex * 900;
                 e.SpawnIn = 1.1f; e.FireCd = 0.7f; e.Phase = 1;
-                pos = Player.Pos + new Vector2(0, -320);
+                pos = Player.Pos + V.FromAngle(Rng.Float(0, MathF.Tau)) * Rng.Float(260f, 380f);
                 e.Pos = pos;
                 Ring(pos, 22, 460, Col.Rgba(180, 60, 255), 0.7f);
                 Shake = 9;
@@ -842,7 +854,8 @@ sealed class World
         }
         e.Hp = e.MaxHp;
         e.Angle = V.Ang(Player.Pos - e.Pos);
-        if (IsAbyss) e.Alt = Player.Alt + Rng.Float(-2.5f, 4f);
+        e.Spiral = Rng.Float(0, MathF.Tau);
+        if (IsAbyss) e.Alt = Player.Alt + Rng.Float(-3.5f, 6f);
         Enemies.Add(e);
         Ring(e.Pos, 8, 140, Col.Rgba(180, 80, 255), 0.35f);
     }
@@ -861,10 +874,7 @@ sealed class World
                 e.SpawnIn -= dt;
                 e.Angle = V.Ang(p - e.Pos);
                 if (IsAbyss)
-                {
-                    HuntPlayer(e, dt);
-                    e.Pos += e.Vel * dt;
-                }
+                    e.Alt += (Player.Alt - e.Alt) * MathF.Min(1f, 3f * dt);
                 continue;
             }
 
@@ -1004,7 +1014,12 @@ sealed class World
                     break;
             }
 
-            if (IsAbyss) HuntPlayer(e, dt);
+            if (IsAbyss)
+            {
+                HuntPlayer(e, dt);
+                Vector2 weave = V.Perp(dir) * MathF.Sin(e.Age * 1.4f + e.Spiral) * 110f;
+                e.Vel = Vector2.Lerp(e.Vel, e.Vel + weave, 0.08f);
+            }
             e.Pos += e.Vel * dt;
             if (!IsAbyss)
             {
@@ -1018,16 +1033,13 @@ sealed class World
 
     void HuntPlayer(Enemy e, float dt)
     {
-        Vector2 to = Player.Pos - e.Pos;
-        float dist = to.Length();
         float altGap = Player.Alt - e.Alt;
-        e.Alt += altGap * MathF.Min(1f, 5.5f * dt);
-        e.Alt += MathF.Sign(altGap) * MathF.Min(MathF.Abs(altGap), 28f * dt);
-        if (dist > 180f)
+        e.Alt += altGap * MathF.Min(1f, 3.2f * dt);
+        float dist = Vector2.Distance(e.Pos, Player.Pos);
+        if (dist > 1400f)
         {
-            Vector2 dir = dist > 1f ? to / dist : Vector2.Zero;
-            float speed = Math.Clamp(360f + dist * 0.9f, 480f, 2600f);
-            e.Vel = dir * speed;
+            Vector2 dir = V.Norm(Player.Pos - e.Pos);
+            e.Vel = Vector2.Lerp(e.Vel, dir * 420f, 0.06f);
         }
     }
 
@@ -1317,6 +1329,7 @@ sealed class World
         Shake = MathF.Max(Shake, boss ? 14f : 4.5f);
         Burst(e.Pos, Vector2.Zero, boss ? 56 : 22, DeathColor(e.Kind), boss ? 360 : 240, boss ? 16 : 9, IsAbyss ? e.Alt : 0f);
         Ring(e.Pos, e.Radius, boss ? 520 : 180, DeathColor(e.Kind), boss ? 0.7f : 0.35f, IsAbyss ? e.Alt : 0f);
+        SmokePuff(e.Pos, IsAbyss ? e.Alt : 0f, boss);
 
         float drop = e.Kind switch
         {
@@ -1438,8 +1451,21 @@ sealed class World
         Particles.Add(new Particle
         {
             Alive = true, Pos = pos, Vel = vel, Alt = alt, VelAlt = velAlt, Life = life, MaxLife = life,
-            Size = size, Drag = 2.4f, Color = color, Additive = add
+            Size = size, Drag = add ? 2.4f : 0.85f, Color = color, Additive = add
         });
+    }
+
+    void SmokePuff(Vector2 pos, float alt, bool big)
+    {
+        int n = big ? 34 : 20;
+        for (int i = 0; i < n; i++)
+        {
+            float g = Rng.Float(88, 175);
+            Color c = Col.Rgba((int)g, (int)(g * 0.96f), (int)(g * 0.9f), 230);
+            Vector2 jitter = V.FromAngle(Rng.Float(0, MathF.Tau)) * Rng.Float(6, big ? 70 : 42);
+            SpawnParticle(pos + jitter, jitter * Rng.Float(0.4f, 1.1f) + new Vector2(0, Rng.Float(-40, -8)),
+                Rng.Float(0.7f, 1.55f), Rng.Float(22, big ? 62 : 40), c, false, alt + Rng.Float(-0.4f, 1.8f), Rng.Float(8f, 26f));
+        }
     }
 
     void Burst(Vector2 pos, Vector2 toward, int n, Color c, float speed, float size, float alt = 0f)
