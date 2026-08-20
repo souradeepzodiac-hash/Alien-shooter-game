@@ -283,76 +283,53 @@ sealed class World
         if (Cam.FovY < 1f) RefreshCamera();
         AimPlaneAtMouse();
 
-        Vector3 fwd = new(MathF.Sin(Player.Yaw), 0f, -MathF.Cos(Player.Yaw));
-        Vector3 right = new(MathF.Cos(Player.Yaw), 0f, MathF.Sin(Player.Yaw));
-        Vector3 wish = Vector3.Zero;
-        if (Raylib.IsKeyDown(KeyboardKey.W) || Raylib.IsKeyDown(KeyboardKey.Up)) wish += fwd;
-        if (Raylib.IsKeyDown(KeyboardKey.S) || Raylib.IsKeyDown(KeyboardKey.Down)) wish -= fwd;
-        if (Raylib.IsKeyDown(KeyboardKey.D) || Raylib.IsKeyDown(KeyboardKey.Right)) wish += right;
-        if (Raylib.IsKeyDown(KeyboardKey.A) || Raylib.IsKeyDown(KeyboardKey.Left)) wish -= right;
-        if (Raylib.IsKeyDown(KeyboardKey.E)) wish += Vector3.UnitY;
-        if (Raylib.IsKeyDown(KeyboardKey.Q) || Raylib.IsKeyDown(KeyboardKey.LeftControl)) wish -= Vector3.UnitY;
+        Vector2 wish = Vector2.Zero;
+        if (Raylib.IsKeyDown(KeyboardKey.A) || Raylib.IsKeyDown(KeyboardKey.Left)) wish.X -= 1;
+        if (Raylib.IsKeyDown(KeyboardKey.D) || Raylib.IsKeyDown(KeyboardKey.Right)) wish.X += 1;
+        if (Raylib.IsKeyDown(KeyboardKey.W) || Raylib.IsKeyDown(KeyboardKey.Up)) wish.Y -= 1;
+        if (Raylib.IsKeyDown(KeyboardKey.S) || Raylib.IsKeyDown(KeyboardKey.Down)) wish.Y += 1;
+        if (wish.LengthSquared() > 0) wish = V.Norm(wish);
 
-        if (wish.LengthSquared() > 0.0001f) wish = Vector3.Normalize(wish);
-        float speed = Player.DashT > 0 ? 44f : 26f;
-
+        float speed = Player.DashT > 0 ? 980f : 520f;
         if (dash && Player.DashCd <= 0)
         {
-            Vector3 burst = wish.LengthSquared() > 0.0001f ? wish : fwd;
-            wish = burst;
-            speed = 48f;
-            Player.DashT = 0.18f;
+            Vector2 dir = wish.LengthSquared() > 0.01f ? wish : new Vector2(MathF.Sin(Player.Yaw), -MathF.Cos(Player.Yaw));
+            wish = V.Norm(dir);
+            speed = 980f;
+            Player.DashT = 0.16f;
             Player.DashCd = 2.15f;
-            Player.IFrames = MathF.Max(Player.IFrames, 0.18f);
+            Player.IFrames = MathF.Max(Player.IFrames, 0.16f);
             _audio.Dash();
-            Burst(Player.Pos, new Vector2(-burst.X, -burst.Z) * 80f, 14, Col.Rgba(120, 230, 255), 220, 9);
+            Burst(Player.Pos, -wish * 80f, 14, Col.Rgba(120, 230, 255), 220, 9);
             Ring(Player.Pos, 18, 280, Col.Rgba(80, 210, 255), 0.28f);
         }
 
-        Player.Vel3 = wish * speed;
-        Player.Pos.X += Player.Vel3.X / WorldScale * dt;
-        Player.Pos.Y += Player.Vel3.Z / WorldScale * dt;
-        Player.Alt += Player.Vel3.Y * dt;
+        Player.Vel = wish * speed;
+        Player.Vel3 = Vector3.Zero;
+        Player.Pos += Player.Vel * dt;
+
+        float climb = 0f;
+        if (Raylib.IsKeyDown(KeyboardKey.E)) climb += 28f;
+        if (Raylib.IsKeyDown(KeyboardKey.Q) || Raylib.IsKeyDown(KeyboardKey.LeftControl)) climb -= 28f;
+        Player.Alt += climb * dt;
         Player.Alt = Math.Clamp(Player.Alt, 0.35f, 260f);
-        Player.Vel = new Vector2(Player.Vel3.X / WorldScale, Player.Vel3.Z / WorldScale);
         RefreshCamera();
     }
 
     void AimPlaneAtMouse()
     {
+        // Face the cursor on screen. Camera must NOT depend on this heading,
+        // or the plane spins forever.
         Vector2 mouse = Raylib.GetMousePosition();
-        Vector3 from = ToWorld(Player.Pos, Player.Alt);
-        Ray ray = Raylib.GetScreenToWorldRay(mouse, Cam);
-        bool aimed = false;
-        if (MathF.Abs(ray.Direction.Y) > 0.0008f)
+        Vector2 ship = Raylib.GetWorldToScreen(ToWorld(Player.Pos, Player.Alt), Cam);
+        Vector2 d = mouse - ship;
+        if (d.LengthSquared() > 36f)
         {
-            float t = (Player.Alt - ray.Position.Y) / ray.Direction.Y;
-            if (t > 0.08f)
-            {
-                Vector3 hit = ray.Position + ray.Direction * t;
-                Vector3 d = hit - from;
-                if (new Vector2(d.X, d.Z).LengthSquared() > 0.0008f)
-                {
-                    Player.Yaw = MathF.Atan2(d.X, -d.Z);
-                    Player.Angle = V.Ang(new Vector2(d.X, d.Z));
-                    aimed = true;
-                }
-            }
+            Player.Yaw = MathF.Atan2(d.X, -d.Y);
+            Player.Angle = MathF.Atan2(d.Y, d.X);
         }
-        if (!aimed)
-        {
-            Vector3 flat = new(ray.Direction.X, 0f, ray.Direction.Z);
-            if (flat.LengthSquared() > 1e-8f)
-            {
-                flat = Vector3.Normalize(flat);
-                Player.Yaw = MathF.Atan2(flat.X, -flat.Z);
-                Player.Angle = V.Ang(new Vector2(flat.X, flat.Z));
-            }
-        }
-
-        float midY = Raylib.GetScreenHeight() * 0.52f;
-        float span = MathF.Max(90f, Raylib.GetScreenHeight() * 0.32f);
-        Player.Pitch = Math.Clamp((midY - mouse.Y) / span * 0.9f, -0.9f, 0.9f);
+        float span = MathF.Max(80f, Raylib.GetScreenHeight() * 0.30f);
+        Player.Pitch = Math.Clamp((ship.Y - mouse.Y) / span * 0.7f, -0.75f, 0.75f);
         Player.Aim3 = LookDir();
     }
 
@@ -760,14 +737,12 @@ sealed class World
     public void RefreshCamera()
     {
         Vector3 p = ToWorld(Player.Pos, Player.Alt);
-        Vector3 fwd = new(MathF.Sin(Player.Yaw), 0f, -MathF.Cos(Player.Yaw));
         Vector3 shake = new(ShakeOff.X * 0.02f, 0f, ShakeOff.Y * 0.02f);
-        Cam.Position = p - fwd * 16.5f + new Vector3(0f, 9.5f - Player.Pitch * 5.5f, 0f) + shake;
-        Cam.Target = p + fwd * 3.5f + new Vector3(0f, 0.6f + Player.Pitch * 5f, 0f) + shake;
+        Cam.Target = p + new Vector3(0f, 0.8f, 0f) + shake;
+        Cam.Position = p + new Vector3(0f, 14f, 24f) + shake;
         Cam.Up = Vector3.UnitY;
-        Cam.FovY = 58f;
+        Cam.FovY = 55f;
         Cam.Projection = CameraProjection.Perspective;
-        Player.Aim3 = LookDir();
     }
 
     public float CombatRadius(Enemy e) => IsAbyss ? MathF.Max(e.Radius * 4f, 64f) : e.Radius;

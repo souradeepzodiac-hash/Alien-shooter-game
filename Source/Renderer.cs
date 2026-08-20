@@ -213,7 +213,7 @@ static class Renderer
         if (w.Player.Overdrive > 0) wpn += $"  OD {w.Player.Overdrive:0.0}";
         DrawTextCentered(c.Font, wpn, new Vector2(sw * 0.5f, Raylib.GetScreenHeight() - 38), 18, Col.Rgba(140, 230, 255));
         if (w.IsAbyss)
-            DrawTextCentered(c.Font, "MOUSE ROTATES PLANE   ARROWS/WASD MOVE   Q/E HEIGHT   LMB FIRE",
+            DrawTextCentered(c.Font, "MOUSE AIMS THE PLANE   ARROWS/WASD MOVE   Q/E HEIGHT   LMB FIRE",
                 new Vector2(sw * 0.5f, Raylib.GetScreenHeight() - 16), 12, Col.Rgba(180, 160, 220, 200));
 
         // weapon slots
