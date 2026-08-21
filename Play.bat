@@ -1,6 +1,10 @@
 @echo off
 setlocal
 cd /d "%~dp0"
+if exist "publish\abyss-planets\VoidHunter.exe" (
+  start "" "publish\abyss-planets\VoidHunter.exe"
+  exit /b 0
+)
 if exist "publish\abyss-smoke\VoidHunter.exe" (
   start "" "publish\abyss-smoke\VoidHunter.exe"
   exit /b 0
