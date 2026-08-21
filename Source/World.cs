@@ -315,7 +315,7 @@ sealed class World
         if (Raylib.IsKeyDown(KeyboardKey.S) || Raylib.IsKeyDown(KeyboardKey.Down)) wish.Y += 1;
         if (wish.LengthSquared() > 0) wish = V.Norm(wish);
 
-        float speed = Player.DashT > 0 ? 980f : 520f;
+        float speed = Player.DashT > 0 ? 1400f : 820f;
         if (dash && Player.DashCd <= 0)
         {
             Vector2 dir = wish.LengthSquared() > 0.01f ? wish : new Vector2(MathF.Sin(Player.Yaw), -MathF.Cos(Player.Yaw));
@@ -764,7 +764,7 @@ sealed class World
         Stars = 0;
         Banner = "LET'S FLY!";
         BannerT = 2.5f;
-        Hint = "MOUSE AIMS     ARROWS FLY     VISIT THE PLANETS AND LAND";
+        Hint = "MOVE MOUSE TO LOOK  •  ARROWS FLY  •  FLY INTO PLANETS TO LAND";
         HintT = 7f;
         SeedPlanets();
         RefreshCamera();
@@ -796,8 +796,21 @@ sealed class World
     {
         Vector3 p = ToWorld(Player.Pos, Player.Alt);
         Vector3 shake = new(ShakeOff.X * 0.02f, 0f, ShakeOff.Y * 0.02f);
-        Cam.Target = p + new Vector3(0f, 0.6f, 0f) + shake;
-        Cam.Position = p + new Vector3(0f, 18f, 32f) + shake;
+        int sw = Math.Max(1, Raylib.GetScreenWidth());
+        int sh = Math.Max(1, Raylib.GetScreenHeight());
+        Vector2 m = Raylib.GetMousePosition();
+        float mx = Math.Clamp(m.X / sw * 2f - 1f, -1f, 1f);
+        float my = Math.Clamp(m.Y / sh * 2f - 1f, -1f, 1f);
+        float yaw = mx * 1.05f;
+        float pitch = Math.Clamp(0.48f - my * 0.92f, -0.50f, 1.28f);
+        float dist = 31f;
+        float cp = MathF.Cos(pitch);
+        Vector3 back = new(
+            MathF.Sin(yaw) * cp * dist,
+            MathF.Sin(pitch) * dist + 1.4f,
+            MathF.Cos(yaw) * cp * dist);
+        Cam.Position = p + back + shake;
+        Cam.Target = p + new Vector3(0f, 1.1f, 0f) + shake;
         Cam.Up = Vector3.UnitY;
         Cam.FovY = 58f;
         Cam.Projection = CameraProjection.Perspective;
@@ -853,10 +866,10 @@ sealed class World
     {
         Planets.Clear();
         NearPlanet = "";
-        Planets.Add(new StarPlanet { Name = "CANDY MOON", Pos = new Vector3(0, 11, -88), Radius = 12f, Color = Col.Rgba(255, 220, 90) });
-        Planets.Add(new StarPlanet { Name = "MINT RING", Pos = new Vector3(-76, 13, -52), Radius = 10f, Color = Col.Rgba(90, 230, 200) });
-        Planets.Add(new StarPlanet { Name = "BERRY WORLD", Pos = new Vector3(82, 10, -46), Radius = 11f, Color = Col.Rgba(255, 120, 180) });
-        Planets.Add(new StarPlanet { Name = "STAR DOCK", Pos = new Vector3(18, 16, -138), Radius = 14f, Color = Col.Rgba(120, 180, 255) });
+        Planets.Add(new StarPlanet { Name = "CANDY MOON", Pos = new Vector3(0, 8, -28), Radius = 18f, Color = Col.Rgba(255, 220, 90) });
+        Planets.Add(new StarPlanet { Name = "MINT RING", Pos = new Vector3(-26, 9, -18), Radius = 15f, Color = Col.Rgba(90, 230, 200) });
+        Planets.Add(new StarPlanet { Name = "BERRY WORLD", Pos = new Vector3(26, 8, -16), Radius = 15f, Color = Col.Rgba(255, 120, 180) });
+        Planets.Add(new StarPlanet { Name = "STAR DOCK", Pos = new Vector3(0, 12, -48), Radius = 20f, Color = Col.Rgba(120, 180, 255) });
     }
 
     void TryLandPlanets()
@@ -868,11 +881,11 @@ sealed class World
             float dx = p.X - pl.Pos.X;
             float dz = p.Z - pl.Pos.Z;
             float dist = MathF.Sqrt(dx * dx + dz * dz);
-            if (dist < pl.Radius * 4.5f)
-                NearPlanet = dist < pl.Radius + 3.5f
-                    ? (pl.Visited ? $"ON  {pl.Name}" : $"LAND ON  {pl.Name}")
-                    : $"FLY TO  {pl.Name}";
-            if (dist < pl.Radius + 2.8f && MathF.Abs(p.Y - pl.Pos.Y) < pl.Radius + 7f)
+            if (dist < pl.Radius * 8f)
+                NearPlanet = dist < pl.Radius + 6f
+                    ? (pl.Visited ? $"ON  {pl.Name}" : $"LAND ON  {pl.Name}  — FLY INTO IT")
+                    : $"FLY TO  {pl.Name}   {dist:0} m";
+            if (dist < pl.Radius + 8f && MathF.Abs(p.Y - pl.Pos.Y) < pl.Radius + 14f)
             {
                 Player.Alt = pl.Pos.Y + pl.Radius * 0.45f;
                 if (!pl.Visited)

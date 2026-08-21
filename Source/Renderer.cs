@@ -226,7 +226,7 @@ static class Renderer
         if (w.Player.Overdrive > 0) wpn += w.IsAbyss ? $"  STAR POWER {w.Player.Overdrive:0.0}" : $"  OD {w.Player.Overdrive:0.0}";
         DrawTextCentered(c.Font, wpn, new Vector2(sw * 0.5f, Raylib.GetScreenHeight() - 38), 18, Col.Rgba(140, 230, 255));
         if (w.IsAbyss)
-            DrawTextCentered(c.Font, "MOUSE TURNS YOU   ARROWS FLY   Q/E UP-DOWN   CLICK TO BLAST",
+            DrawTextCentered(c.Font, "MOUSE LOOKS AROUND AND AIMS   ARROWS FLY   Q/E HEIGHT   CLICK BLAST",
                 new Vector2(sw * 0.5f, Raylib.GetScreenHeight() - 16), 12, Col.Rgba(255, 190, 230, 220));
 
         // weapon slots
@@ -393,21 +393,12 @@ static class Renderer
         int sw = Raylib.GetScreenWidth();
         int sh = Raylib.GetScreenHeight();
         Texture2D sky = c.AbyssSky.Id != 0 ? c.AbyssSky : c.Nebula;
+        Raylib.ClearBackground(Col.Rgba(12, 8, 28));
         if (sky.Id != 0)
         {
-            Vector3 pw = w.ToWorld(w.Player.Pos, w.Player.Alt);
-            float ox = pw.X * 3.2f;
-            float oy = pw.Z * 3.2f;
             var src = new Rectangle(0, 0, sky.Width, sky.Height);
-            Raylib.DrawTexturePro(sky, src, new Rectangle(-ox, -oy, sw + 80, sh + 80), Vector2.Zero, 0, Color.White);
+            Raylib.DrawTexturePro(sky, src, new Rectangle(0, 0, sw, sh), Vector2.Zero, 0, Color.White);
         }
-        else
-        {
-            Raylib.ClearBackground(Col.Rgba(18, 10, 8));
-        }
-        Raylib.DrawRectangle(0, 0, sw, sh, Col.Rgba(40, 10, 50, 40));
-        Raylib.DrawRectangleGradientV(0, 0, sw, sh / 2, Col.Rgba(255, 140, 200, 28), Col.Rgba(0, 0, 0, 0));
-        Raylib.DrawRectangleGradientV(0, sh / 2, sw, sh / 2, Col.Rgba(0, 0, 0, 0), Col.Rgba(20, 0, 40, 70));
 
         Raylib.BeginMode3D(w.Cam);
         DrawOpenSpace(w);
