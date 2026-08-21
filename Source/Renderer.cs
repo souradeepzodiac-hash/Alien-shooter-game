@@ -226,7 +226,7 @@ static class Renderer
         if (w.Player.Overdrive > 0) wpn += w.IsAbyss ? $"  STAR POWER {w.Player.Overdrive:0.0}" : $"  OD {w.Player.Overdrive:0.0}";
         DrawTextCentered(c.Font, wpn, new Vector2(sw * 0.5f, Raylib.GetScreenHeight() - 38), 18, Col.Rgba(140, 230, 255));
         if (w.IsAbyss)
-            DrawTextCentered(c.Font, "MOUSE LOOKS AROUND AND AIMS   ARROWS FLY   Q/E HEIGHT   CLICK BLAST",
+            DrawTextCentered(c.Font, "W FORWARD   A LEFT   D RIGHT   MOUSE AIMS   CLICK FIRE",
                 new Vector2(sw * 0.5f, Raylib.GetScreenHeight() - 16), 12, Col.Rgba(255, 190, 230, 220));
 
         // weapon slots

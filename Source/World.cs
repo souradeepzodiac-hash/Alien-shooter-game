@@ -312,13 +312,12 @@ sealed class World
         if (Raylib.IsKeyDown(KeyboardKey.A) || Raylib.IsKeyDown(KeyboardKey.Left)) wish.X -= 1;
         if (Raylib.IsKeyDown(KeyboardKey.D) || Raylib.IsKeyDown(KeyboardKey.Right)) wish.X += 1;
         if (Raylib.IsKeyDown(KeyboardKey.W) || Raylib.IsKeyDown(KeyboardKey.Up)) wish.Y -= 1;
-        if (Raylib.IsKeyDown(KeyboardKey.S) || Raylib.IsKeyDown(KeyboardKey.Down)) wish.Y += 1;
         if (wish.LengthSquared() > 0) wish = V.Norm(wish);
 
         float speed = Player.DashT > 0 ? 1400f : 820f;
         if (dash && Player.DashCd <= 0)
         {
-            Vector2 dir = wish.LengthSquared() > 0.01f ? wish : new Vector2(MathF.Sin(Player.Yaw), -MathF.Cos(Player.Yaw));
+            Vector2 dir = wish.LengthSquared() > 0.01f ? wish : new Vector2(0, -1);
             wish = V.Norm(dir);
             speed = 980f;
             Player.DashT = 0.16f;
@@ -764,7 +763,7 @@ sealed class World
         Stars = 0;
         Banner = "LET'S FLY!";
         BannerT = 2.5f;
-        Hint = "MOVE MOUSE TO LOOK  •  ARROWS FLY  •  FLY INTO PLANETS TO LAND";
+        Hint = "W STRAIGHT   A / D LEFT RIGHT   MOUSE AIMS   ENEMIES COME FROM AHEAD";
         HintT = 7f;
         SeedPlanets();
         RefreshCamera();
@@ -796,21 +795,8 @@ sealed class World
     {
         Vector3 p = ToWorld(Player.Pos, Player.Alt);
         Vector3 shake = new(ShakeOff.X * 0.02f, 0f, ShakeOff.Y * 0.02f);
-        int sw = Math.Max(1, Raylib.GetScreenWidth());
-        int sh = Math.Max(1, Raylib.GetScreenHeight());
-        Vector2 m = Raylib.GetMousePosition();
-        float mx = Math.Clamp(m.X / sw * 2f - 1f, -1f, 1f);
-        float my = Math.Clamp(m.Y / sh * 2f - 1f, -1f, 1f);
-        float yaw = mx * 1.05f;
-        float pitch = Math.Clamp(0.48f - my * 0.92f, -0.50f, 1.28f);
-        float dist = 31f;
-        float cp = MathF.Cos(pitch);
-        Vector3 back = new(
-            MathF.Sin(yaw) * cp * dist,
-            MathF.Sin(pitch) * dist + 1.4f,
-            MathF.Cos(yaw) * cp * dist);
-        Cam.Position = p + back + shake;
-        Cam.Target = p + new Vector3(0f, 1.1f, 0f) + shake;
+        Cam.Position = p + new Vector3(0f, 15f, 26f) + shake;
+        Cam.Target = p + new Vector3(0f, 1.2f, -8f) + shake;
         Cam.Up = Vector3.UnitY;
         Cam.FovY = 58f;
         Cam.Projection = CameraProjection.Perspective;
@@ -821,45 +807,21 @@ sealed class World
 
     Vector2 VisibleEdgePoint()
     {
-        if (Cam.FovY < 1f) RefreshCamera();
-        int sw = Raylib.GetScreenWidth();
-        int sh = Raylib.GetScreenHeight();
-        int side = Rng.Int(0, 3);
-        Vector2 scr = side switch
-        {
-            0 => new Vector2(Rng.Float(70, sw - 70), 36),
-            1 => new Vector2(40, Rng.Float(60, sh * 0.52f)),
-            _ => new Vector2(sw - 40, Rng.Float(60, sh * 0.52f)),
-        };
-        Ray ray = Raylib.GetScreenToWorldRay(scr, Cam);
-        float t = 22f;
-        if (MathF.Abs(ray.Direction.Y) > 0.0012f)
-        {
-            float hit = (Player.Alt - ray.Position.Y) / ray.Direction.Y;
-            if (hit > 6f) t = hit;
-        }
-        Vector3 wpos = ray.Position + ray.Direction * t;
-        wpos.Y = Player.Alt;
-        return FromWorld(wpos);
+        Vector3 p = ToWorld(Player.Pos, Player.Alt);
+        float ahead = Rng.Float(22f, 34f);
+        float side = Rng.Float(-16f, 16f);
+        return FromWorld(new Vector3(p.X + side, Player.Alt, p.Z - ahead));
     }
 
     void KeepEnemyInView(Enemy e)
     {
         Vector3 ew = ToWorld(e.Pos, e.Alt);
-        Vector3 camF = Cam.Target - Cam.Position;
-        if (camF.LengthSquared() < 0.01f) return;
-        camF = Vector3.Normalize(camF);
-        if (Vector3.Dot(ew - Cam.Position, camF) < 6f)
-        {
-            Vector3 front = ToWorld(Player.Pos, e.Alt) + new Vector3(Rng.Float(-10f, 10f), 0f, -16f);
-            e.Pos = FromWorld(front);
-            return;
-        }
-        Vector2 sp = Raylib.GetWorldToScreen(ew, Cam);
-        int sw = Raylib.GetScreenWidth();
-        int sh = Raylib.GetScreenHeight();
-        if (sp.X < 8 || sp.X > sw - 8 || sp.Y < 8 || sp.Y > sh * 0.88f)
-            e.Vel = V.Norm(Player.Pos - e.Pos) * 260f;
+        Vector3 pw = ToWorld(Player.Pos, e.Alt);
+        if (ew.Z > pw.Z - 4f)
+            e.Pos = FromWorld(new Vector3(ew.X, e.Alt, pw.Z - 10f));
+        float dx = ew.X - pw.X;
+        if (MathF.Abs(dx) > 22f)
+            e.Vel = V.Norm(Player.Pos - e.Pos) * 240f;
     }
 
     void SeedPlanets()
@@ -1094,9 +1056,17 @@ sealed class World
                     if (e.FireCd <= 0 && Player.Alive)
                     {
                         e.FireCd = 1.8f;
-                        e.Pos = p + V.FromAngle(Rng.Float(0, MathF.Tau)) * Rng.Float(160, 260);
-                        if (IsAbyss) e.Alt = Player.Alt;
-                        else e.Pos = V.ClampTo(e.Pos, Playfield, e.Radius);
+                        if (IsAbyss)
+                        {
+                            Vector3 pw = ToWorld(p, Player.Alt);
+                            e.Pos = FromWorld(new Vector3(pw.X + Rng.Float(-12f, 12f), Player.Alt, pw.Z - Rng.Float(16f, 26f)));
+                            e.Alt = Player.Alt;
+                        }
+                        else
+                        {
+                            e.Pos = p + V.FromAngle(Rng.Float(0, MathF.Tau)) * Rng.Float(160, 260);
+                            e.Pos = V.ClampTo(e.Pos, Playfield, e.Radius);
+                        }
                         e.SpawnIn = 0.18f;
                         Vector2 shot = V.Norm(p - e.Pos);
                         SpawnBullet(BulletOwner.Enemy, e.Pos + shot * e.Radius, shot * 380f, 5f, 10f, 2.2f, 0, 0,
@@ -1126,8 +1096,12 @@ sealed class World
             if (IsAbyss)
             {
                 HuntPlayer(e, dt);
-                Vector2 weave = V.Perp(dir) * MathF.Sin(e.Age * 1.4f + e.Spiral) * 110f;
-                e.Vel = Vector2.Lerp(e.Vel, e.Vel + weave, 0.08f);
+                if (e.Kind is not EnemyKind.Hydra)
+                {
+                    Vector2 approach = dir * Math.Clamp(150f + dist * 0.12f, 160f, 270f);
+                    approach += V.Perp(dir) * MathF.Sin(e.Age * 2.1f + e.Spiral) * 48f;
+                    e.Vel = Vector2.Lerp(e.Vel, approach, 0.14f);
+                }
             }
             e.Pos += e.Vel * dt;
             if (IsAbyss) KeepEnemyInView(e);
