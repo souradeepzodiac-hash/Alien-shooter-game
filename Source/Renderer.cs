@@ -265,6 +265,8 @@ static class Renderer
             float a = Math.Clamp(w.HintT / 2f, 0f, 1f);
             DrawTextCentered(c.Font, w.Hint, new Vector2(sw * 0.5f, 158), 20, Col.Fade(Col.Rgba(255, 240, 160), a));
         }
+        if (w.IsAbyss && w.NearPlanet.Length > 0)
+            DrawTextCentered(c.Font, w.NearPlanet, new Vector2(sw * 0.5f, 86), 22, Col.Rgba(255, 230, 120));
 
         DrawCrosshair(Raylib.GetMousePosition(), w.IsAbyss);
     }
@@ -393,8 +395,11 @@ static class Renderer
         Texture2D sky = c.AbyssSky.Id != 0 ? c.AbyssSky : c.Nebula;
         if (sky.Id != 0)
         {
+            Vector3 pw = w.ToWorld(w.Player.Pos, w.Player.Alt);
+            float ox = pw.X * 3.2f;
+            float oy = pw.Z * 3.2f;
             var src = new Rectangle(0, 0, sky.Width, sky.Height);
-            Raylib.DrawTexturePro(sky, src, new Rectangle(0, 0, sw, sh), Vector2.Zero, 0, Color.White);
+            Raylib.DrawTexturePro(sky, src, new Rectangle(-ox, -oy, sw + 80, sh + 80), Vector2.Zero, 0, Color.White);
         }
         else
         {
@@ -522,18 +527,19 @@ static class Renderer
             if (sp.X < -80 || sp.Y < -80 || sp.X > sw + 80 || sp.Y > sh + 80) continue;
             float size = e.Kind switch
             {
-                EnemyKind.Hydra => 160f,
-                EnemyKind.Spire => 96f,
-                EnemyKind.Hunter => 88f,
-                EnemyKind.Wraith => 90f,
-                EnemyKind.Prism => 84f,
-                _ => 80f,
+                EnemyKind.Hydra => 168f,
+                EnemyKind.Spire => 100f,
+                EnemyKind.Hunter => 92f,
+                EnemyKind.Wraith => 86f,
+                EnemyKind.Prism => 80f,
+                _ => 78f,
             };
             float flap = 1f + 0.08f * MathF.Sin(e.Age * 11f);
             Color tint = e.Flash > 0 ? Col.Rgba(255, 240, 200) : Color.White;
             if (e.SpawnIn > 0) tint = Col.Fade(Color.White, 0.45f + 0.55f * (1f - Math.Clamp(e.SpawnIn, 0, 1)));
+            float rot = e.Angle * Raylib.RAD2DEG + 90f;
             DrawGlow(c, sp, size * 0.55f, DeathTint(e.Kind), 0.45f);
-            DrawSprite(c.TexFor(e.Kind), sp, size * flap, 0f, tint);
+            DrawSprite(c.TexFor(e.Kind), sp, size * flap, rot, tint);
             if (e.Kind is not (EnemyKind.Hydra or EnemyKind.Boss) && e.Hp < e.MaxHp)
                 DrawTinyBar(sp + new Vector2(0, size * 0.42f), e.Hp / e.MaxHp, 48, Col.Rgba(255, 80, 70));
         }
@@ -555,6 +561,13 @@ static class Renderer
             float t = Math.Clamp(f.Life / f.MaxLife, 0f, 1f);
             Vector2 scr = Raylib.GetWorldToScreen(w.ToWorld(f.Pos, f.Alt) + new Vector3(0, 2.2f, 0), w.Cam);
             DrawTextCentered(c.Font, f.Text, scr, 22, Col.Fade(f.Color, t));
+        }
+
+        foreach (StarPlanet pl in w.Planets)
+        {
+            Vector2 sp = Raylib.GetWorldToScreen(pl.Pos + new Vector3(0, pl.Radius + 2.2f, 0), w.Cam);
+            if (sp.X < 0 || sp.Y < 0 || sp.X > sw || sp.Y > sh) continue;
+            DrawTextCentered(c.Font, pl.Visited ? $"★ {pl.Name}" : pl.Name, sp, 16, pl.Visited ? Col.Rgba(255, 230, 90) : Color.White);
         }
 
         int sw2 = Raylib.GetScreenWidth();
@@ -654,11 +667,14 @@ static class Renderer
             Raylib.DrawSphere(p, 0.55f, World.Rainbow(i / 24f + w.Time * 0.2f));
         }
 
-        // Distant candy planets
-        Raylib.DrawSphere(new Vector3(-55f, 22f, -40f), 7.5f, Col.Rgba(255, 110, 180));
-        Raylib.DrawSphere(new Vector3(-52f, 24f, -38f), 2.4f, Col.Rgba(255, 200, 230));
-        Raylib.DrawSphere(new Vector3(58f, 18f, -28f), 6.2f, Col.Rgba(90, 210, 255));
-        Raylib.DrawCylinder(new Vector3(58f, 18f, -28f), 8.4f, 8.4f, 0.45f, 16, Col.Rgba(255, 220, 80));
+        foreach (StarPlanet pl in w.Planets)
+        {
+            Raylib.DrawSphere(pl.Pos, pl.Radius, pl.Color);
+            Raylib.DrawSphere(pl.Pos + new Vector3(0, pl.Radius * 0.18f, pl.Radius * 0.12f), pl.Radius * 0.42f, Color.White);
+            Raylib.DrawCylinder(pl.Pos, pl.Radius * 1.45f, pl.Radius * 1.45f, 0.35f, 18, Col.Fade(pl.Color, 0.55f));
+            if (pl.Visited)
+                Raylib.DrawSphereWires(pl.Pos, pl.Radius * 1.15f, 8, 8, Col.Rgba(255, 240, 120, 180));
+        }
 
         // Sparkle orbit
         for (int i = 0; i < 22; i++)

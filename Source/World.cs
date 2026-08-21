@@ -76,6 +76,15 @@ sealed class Boom
     public Color Color;
 }
 
+sealed class StarPlanet
+{
+    public string Name = "";
+    public Vector3 Pos;
+    public float Radius;
+    public Color Color;
+    public bool Visited;
+}
+
 sealed class Player
 {
     public Vector2 Pos, Vel;
@@ -104,6 +113,8 @@ sealed class World
     public readonly List<RingFx> Rings = [];
     public readonly List<Floater> Floaters = [];
     public readonly List<Boom> Booms = [];
+    public readonly List<StarPlanet> Planets = [];
+    public string NearPlanet = "";
 
     public const int FinalLevel = 10;
     public const float WorldScale = 0.045f;
@@ -327,6 +338,7 @@ sealed class World
         if (Raylib.IsKeyDown(KeyboardKey.Q) || Raylib.IsKeyDown(KeyboardKey.LeftControl)) climb -= 28f;
         Player.Alt += climb * dt;
         Player.Alt = Math.Clamp(Player.Alt, 0.35f, 260f);
+        TryLandPlanets();
         RefreshCamera();
     }
 
@@ -752,8 +764,9 @@ sealed class World
         Stars = 0;
         Banner = "LET'S FLY!";
         BannerT = 2.5f;
-        Hint = "POINT WITH THE MOUSE     FLY WITH ARROWS";
+        Hint = "MOUSE AIMS     ARROWS FLY     VISIT THE PLANETS AND LAND";
         HintT = 7f;
+        SeedPlanets();
         RefreshCamera();
         _audio.Boss();
     }
@@ -793,13 +806,96 @@ sealed class World
     public float CombatRadius(Enemy e) => IsAbyss ? MathF.Max(e.Radius * 4f, 64f) : e.Radius;
     public float PlayerCombatRadius() => IsAbyss ? 56f : Player.Radius;
 
+    Vector2 VisibleEdgePoint()
+    {
+        if (Cam.FovY < 1f) RefreshCamera();
+        int sw = Raylib.GetScreenWidth();
+        int sh = Raylib.GetScreenHeight();
+        int side = Rng.Int(0, 3);
+        Vector2 scr = side switch
+        {
+            0 => new Vector2(Rng.Float(70, sw - 70), 36),
+            1 => new Vector2(40, Rng.Float(60, sh * 0.52f)),
+            _ => new Vector2(sw - 40, Rng.Float(60, sh * 0.52f)),
+        };
+        Ray ray = Raylib.GetScreenToWorldRay(scr, Cam);
+        float t = 22f;
+        if (MathF.Abs(ray.Direction.Y) > 0.0012f)
+        {
+            float hit = (Player.Alt - ray.Position.Y) / ray.Direction.Y;
+            if (hit > 6f) t = hit;
+        }
+        Vector3 wpos = ray.Position + ray.Direction * t;
+        wpos.Y = Player.Alt;
+        return FromWorld(wpos);
+    }
+
+    void KeepEnemyInView(Enemy e)
+    {
+        Vector3 ew = ToWorld(e.Pos, e.Alt);
+        Vector3 camF = Cam.Target - Cam.Position;
+        if (camF.LengthSquared() < 0.01f) return;
+        camF = Vector3.Normalize(camF);
+        if (Vector3.Dot(ew - Cam.Position, camF) < 6f)
+        {
+            Vector3 front = ToWorld(Player.Pos, e.Alt) + new Vector3(Rng.Float(-10f, 10f), 0f, -16f);
+            e.Pos = FromWorld(front);
+            return;
+        }
+        Vector2 sp = Raylib.GetWorldToScreen(ew, Cam);
+        int sw = Raylib.GetScreenWidth();
+        int sh = Raylib.GetScreenHeight();
+        if (sp.X < 8 || sp.X > sw - 8 || sp.Y < 8 || sp.Y > sh * 0.88f)
+            e.Vel = V.Norm(Player.Pos - e.Pos) * 260f;
+    }
+
+    void SeedPlanets()
+    {
+        Planets.Clear();
+        NearPlanet = "";
+        Planets.Add(new StarPlanet { Name = "CANDY MOON", Pos = new Vector3(0, 11, -88), Radius = 12f, Color = Col.Rgba(255, 220, 90) });
+        Planets.Add(new StarPlanet { Name = "MINT RING", Pos = new Vector3(-76, 13, -52), Radius = 10f, Color = Col.Rgba(90, 230, 200) });
+        Planets.Add(new StarPlanet { Name = "BERRY WORLD", Pos = new Vector3(82, 10, -46), Radius = 11f, Color = Col.Rgba(255, 120, 180) });
+        Planets.Add(new StarPlanet { Name = "STAR DOCK", Pos = new Vector3(18, 16, -138), Radius = 14f, Color = Col.Rgba(120, 180, 255) });
+    }
+
+    void TryLandPlanets()
+    {
+        NearPlanet = "";
+        Vector3 p = ToWorld(Player.Pos, Player.Alt);
+        foreach (StarPlanet pl in Planets)
+        {
+            float dx = p.X - pl.Pos.X;
+            float dz = p.Z - pl.Pos.Z;
+            float dist = MathF.Sqrt(dx * dx + dz * dz);
+            if (dist < pl.Radius * 4.5f)
+                NearPlanet = dist < pl.Radius + 3.5f
+                    ? (pl.Visited ? $"ON  {pl.Name}" : $"LAND ON  {pl.Name}")
+                    : $"FLY TO  {pl.Name}";
+            if (dist < pl.Radius + 2.8f && MathF.Abs(p.Y - pl.Pos.Y) < pl.Radius + 7f)
+            {
+                Player.Alt = pl.Pos.Y + pl.Radius * 0.45f;
+                if (!pl.Visited)
+                {
+                    pl.Visited = true;
+                    Banner = $"TOUCHED  {pl.Name}!";
+                    BannerT = 2.4f;
+                    Stars += 8;
+                    Score += 250;
+                    LevelScore += 250;
+                    Blast(pl.Pos + new Vector3(0, pl.Radius * 0.5f, 0), 6.5f, pl.Color, 0.7f);
+                    SmokePuff(Player.Pos, Player.Alt, false);
+                    Float(Player.Pos, "+PLANET", pl.Color, Player.Alt);
+                    _audio.Wave();
+                }
+            }
+        }
+    }
+
     Vector2 EdgePoint()
     {
         if (IsAbyss)
-        {
-            float ang = Rng.Float(0, MathF.Tau);
-            return Player.Pos + V.FromAngle(ang) * Rng.Float(200f, 520f);
-        }
+            return VisibleEdgePoint();
         int side = Rng.Int(0, 4);
         float m = 36f;
         return side switch
@@ -838,7 +934,7 @@ sealed class World
             case EnemyKind.Hydra:
                 e.Radius = 68; e.MaxHp = 1100 + _bossIndex * 380; e.Contact = 30; e.Score = 3200 + _bossIndex * 900;
                 e.SpawnIn = 1.1f; e.FireCd = 0.7f; e.Phase = 1;
-                pos = Player.Pos + V.FromAngle(Rng.Float(0, MathF.Tau)) * Rng.Float(260f, 380f);
+                pos = VisibleEdgePoint();
                 e.Pos = pos;
                 Ring(pos, 22, 460, Col.Rgba(180, 60, 255), 0.7f);
                 Shake = 9;
@@ -1021,6 +1117,7 @@ sealed class World
                 e.Vel = Vector2.Lerp(e.Vel, e.Vel + weave, 0.08f);
             }
             e.Pos += e.Vel * dt;
+            if (IsAbyss) KeepEnemyInView(e);
             if (!IsAbyss)
             {
                 if (e.Kind is EnemyKind.Boss or EnemyKind.Hydra)
